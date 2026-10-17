@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCtx, modoActual, repos } from "@/lib/container";
+import { getCtx, llmDisponible, modoActual, repos } from "@/lib/container";
+import { estadoCaso } from "@/lib/core/estado";
 import { historialDe } from "@/lib/core/orquestador";
+import { motivosBloqueo, reglasDe } from "@/lib/core/reglas";
 import Visor from "./Visor";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +16,10 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
   const c = await repos.cartera.get(id);
   if (!c) notFound();
   const gestiones = await repos.gestiones.porCliente(id);
-  const ultima = [...gestiones].reverse().find((g) => g.agente === "gestor" || g.agente === "humano");
-  const esperando = !!ultima && ultima.agente === "gestor" && ultima.derivado_humano;
+  const reglas = await repos.reglas.todas();
+  const estado = estadoCaso(gestiones, motivosBloqueo(reglas));
+  const pagos = await repos.pagos.porCliente(id);
+  const opciones = reglasDe(reglas, "opcion_pago").map((r) => r.valor + (r.condicion !== "siempre" ? ` (${r.condicion})` : ""));
 
   return (
     <main className="wrap">
@@ -38,10 +42,14 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
 
       <Visor
         clienteId={c.cliente_id}
+        resumen={{ nombre: c.nombre, deuda: c.saldo_deuda, cuota: c.monto_cuota, atraso: c.dias_atraso, canal: c.canal_preferido }}
         gestionesIniciales={gestiones}
         conversacionInicial={historialDe(gestiones)}
-        esperandoInicial={esperando}
+        estadoInicial={estado}
+        pagosIniciales={pagos}
         modoInicial={modoActual()}
+        llmDisponible={llmDisponible()}
+        opciones={opciones}
       />
     </main>
   );

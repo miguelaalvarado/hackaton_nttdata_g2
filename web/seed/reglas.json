@@ -54,5 +54,26 @@
     "condicion": "siempre",
     "valor": "embargo, denuncia, policía, cárcel, familiares, vecinos, demanda judicial",
     "descripcion": "(demo) Términos prohibidos en cualquier mensaje."
+  },
+  {
+    "regla_id": 9,
+    "tipo": "escalamiento",
+    "condicion": "motivo = pago_declarado, solicitud_fuera_de_politica",
+    "valor": "pasar a un humano",
+    "descripcion": "(demo, no está en el documento) Pago informado sin conciliar, o solicitud sin política (tasa, descuento, plazo mayor al permitido, pago parcial no autorizado): la evalúa una persona."
+  },
+  {
+    "regla_id": 10,
+    "tipo": "bloqueo",
+    "condicion": "motivo = desconoce_deuda, reclamo",
+    "valor": "suspender la negociación hasta revisión humana",
+    "descripcion": "(demo) Mientras haya disputa no se ofrecen opciones ni se registran promesas."
+  },
+  {
+    "regla_id": 11,
+    "tipo": "sin_respuesta",
+    "condicion": "por cliente",
+    "valor": "máx. 2 intentos sin respuesta",
+    "descripcion": "(demo) Tras 2 contactos sin respuesta se deriva a una persona; no se insiste. Los reintentos cuentan en el límite semanal."
   }
 ]

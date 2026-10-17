@@ -12,6 +12,8 @@ export default async function Cartera({ searchParams }: { searchParams: Promise<
   const todos = await repos.cartera.list();
   const filtrados = todos.filter((c) => (!grupo || c.grupo === grupo) && (!prio || c.prioridad === prio));
   const alta = todos.filter((c) => c.prioridad === "alta");
+  const dist = { alta: alta.length, media: todos.filter((c) => c.prioridad === "media").length, baja: todos.filter((c) => c.prioridad === "baja").length };
+  const tot = Math.max(todos.length, 1);
 
   const filtro = (label: string, q: Record<string, string>, activo: boolean) => (
     <Link key={label} href={{ pathname: "/", query: q }} className={`pill ${activo ? "on" : ""}`}>{label}</Link>
@@ -29,11 +31,23 @@ export default async function Cartera({ searchParams }: { searchParams: Promise<
         <div className="card kpi"><b>{todos.filter((c) => c.grupo === "control").length}</b><span>en grupo control (no se contactan)</span></div>
       </section>
 
+      <div className="card" style={{ marginBottom: 12 }}>
+        <span className="etq sim">CLASIFICACIÓN DEL MODELO LOGÍSTICO (datos sintéticos)</span>
+        <div className="barra" style={{ display: "flex" }} aria-label="Distribución de riesgo">
+          <i style={{ width: `${(dist.alta / tot) * 100}%`, background: "var(--high)" }} />
+          <i style={{ width: `${(dist.media / tot) * 100}%`, background: "var(--mid)" }} />
+          <i style={{ width: `${(dist.baja / tot) * 100}%`, background: "var(--low)" }} />
+        </div>
+        <span className="muted"><span className="chip alto">alto</span> {dist.alta} ({((dist.alta / tot) * 100).toFixed(0)} %) · <span className="chip medio">medio</span> {dist.media} ({((dist.media / tot) * 100).toFixed(0)} %) · <span className="chip bajo">bajo</span> {dist.baja} ({((dist.baja / tot) * 100).toFixed(0)} %) · umbrales: alto ≥ 55 %, medio ≥ 30 %</span>
+      </div>
+
       <div className="filtros">
         {filtro("Todos", {}, !grupo && !prio)}
-        {filtro("Prioridad alta", { prio: "alta" }, prio === "alta")}
+        {filtro("Riesgo alto", { prio: "alta" }, prio === "alta")}
+        {filtro("Riesgo medio", { prio: "media" }, prio === "media")}
+        {filtro("Riesgo bajo", { prio: "baja" }, prio === "baja")}
         {filtro("Tratamiento", { grupo: "tratamiento" }, grupo === "tratamiento")}
-        {filtro("Alta + tratamiento", { prio: "alta", grupo: "tratamiento" }, prio === "alta" && grupo === "tratamiento")}
+        {filtro("Alto + tratamiento", { prio: "alta", grupo: "tratamiento" }, prio === "alta" && grupo === "tratamiento")}
         {filtro("Control", { grupo: "control" }, grupo === "control")}
       </div>
 

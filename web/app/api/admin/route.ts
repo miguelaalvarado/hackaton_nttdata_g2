@@ -2,24 +2,25 @@ import { NextResponse } from "next/server";
 import { resetDb } from "@/lib/adapters/sqlite";
 import { getCtx, reiniciarCache } from "@/lib/container";
 import { cerrarMes, procesarLote } from "@/lib/core/seguimiento";
+import { adminBody, errorInterno, leerJson } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-/** Acciones de demo: lote sin LLM, cierre de mes simulado y reinicio de la base. */
+/** Acciones de demo (lote sin LLM, cierre de mes simulado, reinicio). Protegidas: ver lib/auth.ts. */
 export async function POST(req: Request) {
+  const b = await leerJson(req, adminBody);
+  if (!b.ok) return b.res;
   try {
-    const { accion, n = 30 } = (await req.json()) as { accion: "lote" | "cierre" | "reset"; n?: number };
-    if (accion === "reset") {
+    if (b.data.accion === "reset") {
       await resetDb();
       reiniciarCache();
       return NextResponse.json({ ok: true });
     }
     const ctx = await getCtx("scripted"); // el lote usa reglas (sin LLM) para ser rápido y sin costo
-    if (accion === "lote") return NextResponse.json(await procesarLote(ctx, Math.min(Math.max(n, 1), 200)));
-    if (accion === "cierre") return NextResponse.json(await cerrarMes(ctx));
-    return NextResponse.json({ error: "accion inválida" }, { status: 400 });
+    if (b.data.accion === "lote") return NextResponse.json(await procesarLote(ctx, b.data.n));
+    return NextResponse.json(await cerrarMes(ctx));
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Error" }, { status: 500 });
+    return errorInterno(e, "admin");
   }
 }

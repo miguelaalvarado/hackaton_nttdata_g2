@@ -1,6 +1,7 @@
+import { borradorSupervisor } from "../core/borrador-supervisor";
 import type { ClienteSimulator, GestorAgent } from "../core/ports";
 import { evalCondicion, motivosEscalamiento, reglasDe, sumarDias } from "../core/reglas";
-import type { GestorTurn, Motivo } from "../core/types";
+import type { GestorResultado, GestorTurn, Motivo } from "../core/types";
 
 const has = (t: string, re: RegExp) => re.test(t.toLowerCase());
 
@@ -19,7 +20,12 @@ const nulos = { regla_id: null, monto_promesa: null, fecha_promesa: null, resume
 /** Gestor por reglas, sin LLM: respaldo de demo y modo lote. Mismas reglas de negocio que el Gestor LLM. */
 export const gestorScripted: GestorAgent = {
   name: "reglas (sin LLM)",
-  async turno({ cliente, reglas, historial, hoy, humanoActivo }) {
+  async turno(input): Promise<GestorResultado> {
+    return { ...(await turnoReglas(input)), meta: { motor: "reglas" } };
+  },
+};
+
+async function turnoReglas({ cliente, reglas, historial, hoy, humanoActivo }: Parameters<GestorAgent["turno"]>[0]): Promise<GestorTurn> {
     const ultimoCliente = [...historial].reverse().find((t) => t.rol === "cliente")?.texto ?? "";
     const previoGestor = [...historial].reverse().find((t) => t.rol === "gestor");
     const primer = cliente.nombre.split(" ")[0];
@@ -42,7 +48,7 @@ export const gestorScripted: GestorAgent = {
         mensaje: "Entiendo, gracias por contarme. Un asesor se comunicará contigo para ayudarte personalmente.",
         justificacion: `Motivo "${motivo}": la regla de escalamiento exige pasar a un humano.`,
         resumen_humano: `Cliente ${cliente.nombre} (${cliente.producto}, atraso ${cliente.dias_atraso} d). Motivo: ${motivo}. Dijo: "${ultimoCliente}"`,
-        borrador_humano: `Hola ${primer}, soy asesor de tu banco. Lamento lo que cuentas; quiero revisar tu caso contigo y buscar una solución a tu medida. ¿Podemos acordar un plan de pagos que se ajuste a tu situación?`,
+        borrador_humano: borradorSupervisor(cliente.nombre),
       };
     }
 
@@ -77,10 +83,9 @@ export const gestorScripted: GestorAgent = {
       ...nulos, accion: "escalar_humano", motivo_no_pago: motivo, mensaje: "Gracias, un asesor te contactará para encontrar una solución.",
       justificacion: "Ninguna opción de la tabla de reglas aplica a este caso.",
       resumen_humano: `Sin opción de reglas aplicable. Motivo: ${motivo}. Última respuesta: "${ultimoCliente}"`,
-      borrador_humano: `Hola ${primer}, soy asesor de tu banco y quiero ayudarte a resolver tu situación. ¿Qué plan de pagos te resultaría posible?`,
+      borrador_humano: borradorSupervisor(cliente.nombre),
     };
-  },
-};
+}
 
 /** Cliente simulado por reglas (sin red), según su escenario oculto. */
 export const clienteScripted: ClienteSimulator = {

@@ -112,3 +112,32 @@ select { font: inherit; color: var(--ink); background: var(--card); border: 1px 
 .hbar i { display: block; height: 10px; border-radius: 5px; background: var(--accent); }
 .hbar b { text-align: right; }
 @media (max-width: 760px) { .nodo { width: 110px; } .nodo small { display: none; } .diag { height: 320px; } }
+
+/* ---- fase 2 · fiabilidad e impacto ---- */
+.motor { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); margin-left: 6px; vertical-align: middle; }
+.motor.llm { color: var(--low); border-color: var(--low); } .motor.fallback { color: var(--mid); border-color: var(--mid); }
+.motor.reglas { color: var(--muted); } .motor.sim { color: var(--accent); border-color: var(--accent); } .motor.humano { color: var(--ink); }
+.pasos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 12px; }
+.paso { border: 1px solid var(--line); border-radius: 999px; padding: 2px 11px; font-size: 12px; color: var(--muted); background: var(--card); }
+.paso.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+.paso.alerta.on { background: var(--mid); border-color: var(--mid); }
+.aviso { border: 1px solid var(--mid); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; font-size: 13px; }
+.aviso.sim { border-color: var(--accent); }
+.acceso { margin: 0 0 12px; } .acceso summary { cursor: pointer; font-size: 14px; }
+.acceso input, .controles input, .controles select, .controles textarea, .humano textarea, .escala input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+.controles { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 0 0 12px; }
+.controles label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.seccion { margin: 28px 0 8px; padding-top: 8px; border-top: 2px solid var(--line); }
+.seccion h2 { margin: 0 0 2px; } .seccion .sub { margin-bottom: 10px; }
+.etq { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .03em; padding: 1px 9px; border-radius: 4px; margin-bottom: 6px; }
+.etq.real { background: color-mix(in srgb, var(--low) 20%, transparent); color: var(--low); }
+.etq.sim { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.etq.hip { background: color-mix(in srgb, var(--mid) 22%, transparent); color: var(--mid); }
+.escala { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 8px 0 14px; }
+.escala label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.escala input { width: 100%; box-sizing: border-box; }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } @media (max-width: 760px) { .cmp { grid-template-columns: 1fr; } }
+.barra { height: 14px; border-radius: 7px; background: var(--line); margin: 4px 0 10px; overflow: hidden; } .barra i { display: block; height: 100%; }
+.resumen-caso { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px 14px; font-size: 13px; margin: 6px 0 10px; } .resumen-caso b { display: block; }
+@media (max-width: 760px) { .controles { flex-direction: column; align-items: stretch; } .btnrow .btn { flex: 1 1 100%; } .kpis { grid-template-columns: 1fr 1fr; } }
