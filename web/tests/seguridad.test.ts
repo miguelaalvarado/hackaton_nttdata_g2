@@ -22,7 +22,7 @@ beforeEach(async () => { vi.unstubAllEnvs(); await reiniciar(); });
 afterEach(() => vi.unstubAllEnvs());
 
 describe("P0-C · acciones administrativas protegidas", () => {
-  it("producción sin NEXO_ADMIN_TOKEN: TODO queda deshabilitado (falla cerrado) y el reinicio NO borra nada", async () => {
+  it("producción sin NEXO_ADMIN_TOKEN: TODO queda deshabilitado y el reinicio NO borra nada", async () => {
     vi.stubEnv("NODE_ENV", "production");
     await crearCliente({ cliente_id: "KEEP1" });
     const antes = await cuenta("cartera");
@@ -50,11 +50,27 @@ describe("P0-C · acciones administrativas protegidas", () => {
     expect((await admin(req({ accion: "reset", confirmar: "REINICIAR" }, conToken))).status).toBe(200);
     expect(await cuenta("cartera")).toBe(800);
   });
-  it("sin token en desarrollo solo se acepta localhost", () => {
-    expect(autorizarAdmin(req({}, { host: "localhost:3000" })).ok).toBe(true);
-    expect(autorizarAdmin(req({}, { host: "127.0.0.1:3000" })).ok).toBe(true);
-    expect(autorizarAdmin(req({}, { host: "demo.ejemplo.com" })).ok).toBe(false);
-    expect(autorizarAdmin(req({}, {})).ok).toBe(false);
+  it("sin token configurado TODO queda deshabilitado, también en desarrollo y también desde localhost (no se confía en Host)", async () => {
+    await crearCliente({ cliente_id: "KEEP3" });
+    const antes = await cuenta("cartera");
+    for (const host of ["localhost:3000", "127.0.0.1", "[::1]:3000", "evil.com"]) {
+      expect(autorizarAdmin(req({}, { host })).ok).toBe(false);
+      expect((await admin(req({ accion: "reset", confirmar: "REINICIAR" }, { host }))).status).toBe(403);
+    }
+    // aunque el atacante envíe cualquier valor como token, sin token configurado en el servidor no hay acceso
+    expect((await admin(req({ accion: "reset", confirmar: "REINICIAR" }, { host: "localhost", "x-admin-token": "" }))).status).toBe(403);
+    expect(await cuenta("cartera")).toBe(antes);
+  });
+  it("CSRF: un POST «simple» entre sitios (text/plain, sin cabecera de token) no puede reiniciar la base", async () => {
+    vi.stubEnv("NEXO_ADMIN_TOKEN", TOKEN);
+    await crearCliente({ cliente_id: "KEEP4" });
+    const antes = await cuenta("cartera");
+    const csrf = new Request("http://localhost:3000/api/admin", { method: "POST", headers: { host: "localhost:3000", origin: "http://sitio-malo.example", "content-type": "text/plain" }, body: '{"accion":"reset","confirmar":"REINICIAR"}' });
+    expect((await admin(csrf)).status).toBe(401); // falta el token (cabecera personalizada ⇒ exige preflight)
+    // y aunque tuviera el token, un cuerpo que no es application/json se rechaza
+    const plano = new Request("http://localhost:3000/api/admin", { method: "POST", headers: { "x-admin-token": TOKEN, "content-type": "text/plain" }, body: '{"accion":"reset","confirmar":"REINICIAR"}' });
+    expect((await admin(plano)).status).toBe(415);
+    expect(await cuenta("cartera")).toBe(antes);
   });
   it("las operaciones del asesor exigen autorización y no escriben nada si se rechazan", async () => {
     vi.stubEnv("NEXO_ADMIN_TOKEN", TOKEN);

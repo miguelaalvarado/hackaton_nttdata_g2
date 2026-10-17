@@ -42,6 +42,8 @@ const MAX_BYTES = 20_000;
 /** Lee y valida el JSON de la petición. Devuelve los datos o una Response 400/413 lista para retornar. */
 export async function leerJson<T extends z.ZodTypeAny>(req: Request, schema: T): Promise<{ ok: true; data: z.infer<T> } | { ok: false; res: Response }> {
   const fallo = (status: number, error: string, campos?: string[]) => ({ ok: false as const, res: Response.json({ error, campos }, { status, headers: { "cache-control": "no-store" } }) });
+  // Un POST «simple» entre sitios (text/plain) no dispara preflight CORS: solo se aceptan cuerpos application/json.
+  if (!(req.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) return fallo(415, "Se requiere Content-Type: application/json");
   const txt = await req.text();
   if (txt.length > MAX_BYTES) return fallo(413, "Solicitud demasiado grande");
   let json: unknown;
