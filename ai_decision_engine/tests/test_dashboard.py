@@ -31,7 +31,7 @@ def test_dashboard_buttons_mutate_real_database(isolated_db):
     assert q("select count(*) from agent_runs where agent_name='risk_agent'") == [(1,)]
     click("Compromiso de pago")
     assert q("select status from promises") == [("OPEN",)]
-    assert q("select validity from decisions") == [("stale",)]  # el compromiso invalidó la propuesta previa
+    assert q("select validity from decisions") == [("stale",)] * 2  # el compromiso invalidó ambas propuestas pendientes
     click("Disputa")
     assert q("select dispute_open from customers where customer_id='CLI-0002'") == [(1,)]
     click("Exclusión voluntaria")
