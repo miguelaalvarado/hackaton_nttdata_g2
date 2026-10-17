@@ -5,7 +5,7 @@ reales de Give Me Some Credit. Los patrones se plantean a propósito (sin sueldo
 al límite y atrasos suben la probabilidad de no pago), así que el AUC mide cuánto recupera el modelo de esos
 patrones con ruido, NO desempeño en producción. Columnas `sim_*` son solo del simulador (nunca las ve un agente).
 
-Salidas (web/seed/): cartera.json, reglas.json, modelo.json
+Salidas (web/seed/): cartera_entrenamiento.json, reglas.json, modelo.json (la cartera de la web: gen_demo_cartera.py)
 """
 import json
 from pathlib import Path
@@ -150,7 +150,8 @@ def main() -> None:
     out = df.copy()
     for c in ("sueldo_llego_mes", "sim_pago_base"):
         out[c] = out[c].astype(bool)
-    (OUT / "cartera.json").write_text(json.dumps(out.to_dict("records"), ensure_ascii=False, default=float), encoding="utf-8")
+    # La cartera de la web la escribe gen_demo_cartera.py (20 perfiles); estas 800 filas solo entrenan el modelo.
+    (OUT / "cartera_entrenamiento.json").write_text(json.dumps(out.to_dict("records"), ensure_ascii=False, default=float), encoding="utf-8")
     (OUT / "modelo.json").write_text(json.dumps(modelo, ensure_ascii=False, indent=2), encoding="utf-8")
 
     reglas = [

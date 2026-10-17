@@ -13,7 +13,7 @@ beforeEach(reiniciar);
 describe("riesgo y datos sintéticos", () => {
   it("el análisis es determinístico y la prioridad respeta los umbrales", async () => {
     const todos = await repos.cartera.list();
-    expect(todos).toHaveLength(800);
+    expect(todos).toHaveLength(20);
     for (const c of todos.slice(0, 60)) {
       const a = analizar(c, modeloLogistico), b = analizar(c, modeloLogistico);
       expect(a).toEqual(b);

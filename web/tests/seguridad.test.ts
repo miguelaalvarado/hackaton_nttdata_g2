@@ -27,7 +27,7 @@ describe("P0-C · acciones administrativas", () => {
     expect((await admin(req({ accion: "reset" }))).status).toBe(400);
     expect(await cuenta("cartera")).toBe(antes);
     expect((await admin(req({ accion: "reset", confirmar: "REINICIAR" }))).status).toBe(200);
-    expect(await cuenta("cartera")).toBe(800);
+    expect(await cuenta("cartera")).toBe(20);
   });
   it("CSRF: un cuerpo que no es application/json se rechaza y no reinicia la base", async () => {
     await crearCliente({ cliente_id: "KEEP4" });
