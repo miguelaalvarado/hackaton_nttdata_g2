@@ -1,0 +1,18 @@
+{
+  "rows": 150000,
+  "default_rate": 0.0668,
+  "auc": 0.868,
+  "pr_auc": 0.4024,
+  "brier": 0.0489,
+  "recall_top10pct": 0.5499,
+  "precision_top10pct": 0.3675,
+  "mean_pred": 0.0678,
+  "top_features": {
+    "RevolvingUtilizationOfUnsecuredLines": 0.0701,
+    "total_late": 0.0222,
+    "late_severity": 0.0216,
+    "age": 0.0123,
+    "NumberOfOpenCreditLinesAndLoans": 0.0044,
+    "DebtRatio": 0.0032
+  }
+}

@@ -1,0 +1,74 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ink: #14181f;
+  --muted: #5d6675;
+  --line: #e3e6eb;
+  --accent: #1f4fd8;
+  --high: #c62828;
+  --mid: #b26a00;
+  --low: #2e7d32;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218;
+    --card: #171b23;
+    --ink: #e8ebf0;
+    --muted: #98a2b3;
+    --line: #272d38;
+    --accent: #7a9bff;
+    --high: #ff6b6b;
+    --mid: #f0b44c;
+    --low: #6fcf8a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+.sub { color: var(--muted); margin: 0 0 20px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.kpi b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.kpi span { color: var(--muted); font-size: 13px; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+tr:last-child td { border-bottom: 0; }
+.num { text-align: right; }
+.chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid currentColor; }
+.chip.alto { color: var(--high); } .chip.medio { color: var(--mid); } .chip.bajo { color: var(--low); }
+.bar { display: inline-block; width: 70px; height: 6px; background: var(--line); border-radius: 3px; vertical-align: middle; margin-right: 8px; }
+.bar i { display: block; height: 100%; border-radius: 3px; background: var(--high); }
+.note { color: var(--muted); font-size: 13px; margin-top: 16px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.back { display: inline-block; margin-bottom: 12px; font-size: 14px; }
+.list { margin: 0; padding-left: 18px; }
+.spark { display: block; width: 100%; height: 56px; }
+.btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.row { display: flex; gap: 8px; margin-top: 12px; }
+.muted { color: var(--muted); font-size: 13px; }
+.err { color: var(--high); } .ok { color: var(--low); font-weight: 600; }
+.trace { margin: 12px 0; } .trace summary { cursor: pointer; font-weight: 600; } .trace ol { margin: 8px 0; padding-left: 20px; } .res { white-space: normal; word-break: break-word; }
+.prop { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.prop small { display: block; color: var(--muted); font-size: 12px; }
+.prop .grid2 { grid-template-columns: repeat(4, 1fr); } @media (max-width: 760px) { .prop .grid2 { grid-template-columns: 1fr 1fr; } }
+.econ { margin: 10px 0 4px; } .why { margin: 4px 0 10px; }
+textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.checks { list-style: none; margin: 12px 0 0; padding: 0; } .checks li { padding: 2px 0; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; } .dot.ok { background: var(--low); } .dot.warn { background: var(--mid); } .dot.block { background: var(--high); }
+.turn { border-left: 3px solid var(--line); padding-left: 12px; margin: 0 0 14px; } .turn-h { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.bubble { padding: 8px 12px; border-radius: 10px; margin: 4px 0; max-width: 85%; } .bubble.out { background: var(--bg); } .bubble.in { background: var(--accent); color: #fff; margin-left: auto; }
+.turn-f { margin-top: 4px; }
