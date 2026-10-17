@@ -23,6 +23,7 @@
     "auc_regla_docx": 0.7869,
     "ks_modelo": 0.5144,
     "precision_top20": 0.7917,
-    "lift_top20": 2.5
+    "lift_top20": 2.5,
+    "n_demo": 20
   }
 }

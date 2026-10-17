@@ -5,7 +5,7 @@ reales de Give Me Some Credit. Los patrones se plantean a propósito (sin sueldo
 al límite y atrasos suben la probabilidad de no pago), así que el AUC mide cuánto recupera el modelo de esos
 patrones con ruido, NO desempeño en producción. Columnas `sim_*` son solo del simulador (nunca las ve un agente).
 
-Salidas (web/seed/): cartera.json, reglas.json, modelo.json
+Salidas (web/seed/): cartera.json (20 clientes de demo), reglas.json, modelo.json (entrenado con 800)
 """
 import json
 from pathlib import Path
@@ -28,6 +28,16 @@ NAMES = ["Ana", "Luis", "Carla", "Jorge", "Rosa", "Pedro", "Lucía", "Miguel", "
          "Sofía", "Raúl", "Paula", "Héctor", "Valeria", "Óscar", "Camila", "Iván", "María", "Carlos", "Julia", "Fernando"]
 SURNAMES = ["Quispe", "Flores", "Rojas", "Huamán", "Torres", "Vargas", "Mendoza", "Castillo", "Ramos", "Chávez",
             "Gutiérrez", "Paredes", "Salazar", "Ortiz", "Cárdenas", "Núñez", "Condori", "Mamani", "Ríos", "Soto"]
+
+# Cartera de demostración: 20 clientes con riesgo variable (el modelo se entrena con los 800).
+# (escenario oculto, grupo) deseados por banda; se busca un cliente que cumpla y, si no hay, se relaja el escenario.
+DEMO = {
+    "alta": [("retraso_ingresos", "tratamiento"), ("iliquidez", "tratamiento"), ("desempleo", "tratamiento"), ("retraso_ingresos", "control")],
+    "media": [("iliquidez", "tratamiento"), ("retraso_ingresos", "tratamiento"), ("olvido", "tratamiento"), ("iliquidez", "control"), ("olvido", "control")],
+    "baja": [("olvido", "tratamiento")] * 4 + [("reclamo", "tratamiento"), ("iliquidez", "tratamiento"), ("desconoce_deuda", "tratamiento")]
+            + [("olvido", "control")] * 3 + [("olvido", "tratamiento")],
+}
+BANDAS = {"alta": (0.59, 1.0), "media": (0.34, 0.51), "baja": (0.0, 0.26)}  # con margen respecto a los umbrales 0.55 / 0.30
 
 FEATURES = ["sin_sueldo", "cobertura_cuota", "uso_linea", "atrasos_6m", "dias_atraso_30"]
 
@@ -120,6 +130,28 @@ def regla_docx(df: pd.DataFrame) -> np.ndarray:
             + 20 * (df["uso_linea_tc_pct"] > 80) + 25 * (df["atrasos_ult_6m"] > 0)).to_numpy()
 
 
+def seleccionar_demo(df: pd.DataFrame, p: np.ndarray) -> pd.DataFrame:
+    """Elige 20 clientes variados: 4 de riesgo alto, 5 medio y 11 bajo, mezclando escenarios y grupos."""
+    d = df.assign(p=p).sample(frac=1, random_state=SEED)
+    usados: set[str] = set()
+    filas = []
+    for banda, deseos in DEMO.items():
+        lo, hi = BANDAS[banda]
+        pool = d[(d["p"] >= lo) & (d["p"] < hi)]
+        for esc, grupo in deseos:
+            c = pool[(~pool["cliente_id"].isin(usados)) & (pool["sim_escenario"] == esc) & (pool["grupo"] == grupo)]
+            if c.empty:
+                c = pool[(~pool["cliente_id"].isin(usados)) & (pool["grupo"] == grupo)]
+            if c.empty:
+                raise SystemExit(f"Sin candidatos para {banda}/{esc}/{grupo}")
+            fila = c.iloc[0]
+            usados.add(fila["cliente_id"])
+            filas.append(fila)
+    sel = pd.DataFrame(filas).sort_values("p", ascending=False).reset_index(drop=True)
+    sel["cliente_id"] = [f"CL{i+1:04d}" for i in range(len(sel))]
+    return sel
+
+
 def main() -> None:
     df = build()
     X, y = feats(df), (~df["sim_pago_base"]).astype(int)
@@ -150,7 +182,15 @@ def main() -> None:
     out = df.copy()
     for c in ("sueldo_llego_mes", "sim_pago_base"):
         out[c] = out[c].astype(bool)
+    demo = seleccionar_demo(df, lr.predict_proba(X)[:, 1])
+    metrics["n_demo"] = int(len(demo))
+    modelo["metricas"] = metrics
+    out = demo.drop(columns=["p"])
+    for c in ("sueldo_llego_mes", "sim_pago_base"):
+        out[c] = out[c].astype(bool)
     (OUT / "cartera.json").write_text(json.dumps(out.to_dict("records"), ensure_ascii=False, default=float), encoding="utf-8")
+    print(demo[["cliente_id", "nombre", "p", "sim_escenario", "grupo", "dias_atraso", "sueldo_llego_mes", "canal_preferido"]].round(2).to_string(index=False))
+
     (OUT / "modelo.json").write_text(json.dumps(modelo, ensure_ascii=False, indent=2), encoding="utf-8")
 
     reglas = [
