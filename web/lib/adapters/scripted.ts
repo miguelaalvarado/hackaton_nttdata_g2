@@ -1,6 +1,6 @@
 import type { ClienteSimulator, GestorAgent } from "../core/ports";
 import { evalCondicion, motivosEscalamiento, reglasDe, sumarDias } from "../core/reglas";
-import type { GestorTurn, Motivo } from "../core/types";
+import type { GestorResultado, GestorTurn, Motivo } from "../core/types";
 
 const has = (t: string, re: RegExp) => re.test(t.toLowerCase());
 
@@ -19,7 +19,12 @@ const nulos = { regla_id: null, monto_promesa: null, fecha_promesa: null, resume
 /** Gestor por reglas, sin LLM: respaldo de demo y modo lote. Mismas reglas de negocio que el Gestor LLM. */
 export const gestorScripted: GestorAgent = {
   name: "reglas (sin LLM)",
-  async turno({ cliente, reglas, historial, hoy, humanoActivo }) {
+  async turno(input): Promise<GestorResultado> {
+    return { ...(await turnoReglas(input)), meta: { motor: "reglas" } };
+  },
+};
+
+async function turnoReglas({ cliente, reglas, historial, hoy, humanoActivo }: Parameters<GestorAgent["turno"]>[0]): Promise<GestorTurn> {
     const ultimoCliente = [...historial].reverse().find((t) => t.rol === "cliente")?.texto ?? "";
     const previoGestor = [...historial].reverse().find((t) => t.rol === "gestor");
     const primer = cliente.nombre.split(" ")[0];
@@ -79,8 +84,7 @@ export const gestorScripted: GestorAgent = {
       resumen_humano: `Sin opción de reglas aplicable. Motivo: ${motivo}. Última respuesta: "${ultimoCliente}"`,
       borrador_humano: `Hola ${primer}, soy asesor de tu banco y quiero ayudarte a resolver tu situación. ¿Qué plan de pagos te resultaría posible?`,
     };
-  },
-};
+}
 
 /** Cliente simulado por reglas (sin red), según su escenario oculto. */
 export const clienteScripted: ClienteSimulator = {

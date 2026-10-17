@@ -20,29 +20,52 @@ type Ev = EventoStream;
 const mk = (n: { v: number }, de: ActorId, a: ActorId, tipo: "consulta" | "seguimiento" | "registro", titulo: string, texto?: string, estado: "ok" | "rechazado" | "info" = "info"): Ev =>
   ({ tipo: "evento", evento: { id: ++n.v, de, a, tipo, titulo, texto, estado } });
 
-/** El Supervisor cruza las promesas pendientes del cliente con el pago y las marca cumplida/rota. */
+/**
+ * Avanza al día de la promesa (SIMULACIÓN de calendario). Estados: pendiente → fecha alcanzada →
+ *  - `cumplida`: hay un pago CONFIRMADO que la cubre;
+ *  - `cumplida_simulada`: el simulador genera un pago SIMULADO (no mueve saldo, no es recuperación observada);
+ *  - `rota`: no hubo pago.
+ * Una promesa nunca se convierte en pago confirmado por sí sola.
+ */
 export async function* seguimientoCliente(ctx: Ctx, clienteId: string): AsyncGenerator<Ev> {
   const n = { v: 0 };
   const c = await ctx.cartera.get(clienteId);
   if (!c) { yield { tipo: "fin", estado: "error", detalle: "Cliente no existe" }; return; }
   const pendientes = await ctx.gestiones.promesasPendientes(clienteId);
   if (!pendientes.length) { yield { tipo: "fin", estado: "cerrado", detalle: "Sin promesas pendientes." }; return; }
-  let ultimo: "cumplida" | "rota" = "rota";
+  let ultimo: "cumplida" | "cumplida_simulada" | "rota" = "rota";
+  const confirmados = (await ctx.pagos.porCliente(clienteId)).filter((x) => x.estado === "confirmado");
   for (const p of pendientes) {
-    yield mk(n, "supervisor", "bd", "consulta", `¿Hubo pago de S/ ${p.monto_promesa} el ${p.fecha_promesa}?`, "Cruza la promesa con los pagos registrados.");
-    const ok = promesaCumplida(c, p.motivo_no_pago);
-    ultimo = ok ? "cumplida" : "rota";
-    yield mk(n, "bd", "supervisor", "seguimiento", ok ? "Pago encontrado" : "No se encontró el pago", ok ? "El pago coincide con la promesa." : "Llegó la fecha y no hay pago.", ok ? "ok" : "rechazado");
+    yield mk(n, "supervisor", "bd", "seguimiento", `SIMULACIÓN: llega la fecha de la promesa (${p.fecha_promesa})`, `Promesa #${p.gestion_id} por S/ ${p.monto_promesa}.`);
+    await ctx.gestiones.insertar({ cliente_id: clienteId, agente: "supervisor", accion: "fecha_promesa_alcanzada", canal: null, mensaje: null, resultado: "fecha_alcanzada", motivo_no_pago: p.motivo_no_pago,
+      monto_promesa: null, fecha_promesa: null, estado_promesa: null, derivado_humano: false, justificacion: `Se alcanzó la fecha (${p.fecha_promesa}) de la promesa #${p.gestion_id} por S/ ${p.monto_promesa}.`, origen: "supervisor", aprobacion: "no_aplica", motor: "reglas" });
+    yield mk(n, "supervisor", "bd", "consulta", `¿Hay un pago CONFIRMADO de S/ ${p.monto_promesa}?`, "Consulta la tabla de pagos confirmados por conciliación.");
+    const cubierto = confirmados.some((x) => x.monto >= (p.monto_promesa ?? Infinity) && x.fecha >= p.fecha);
+    if (cubierto) {
+      ultimo = "cumplida";
+      yield mk(n, "bd", "supervisor", "seguimiento", "Pago confirmado encontrado", "Hay un pago conciliado que cubre la promesa.", "ok");
+    } else {
+      const ok = promesaCumplida(c, p.motivo_no_pago);
+      if (ok) {
+        ultimo = "cumplida_simulada";
+        await ctx.pagos.registrar({ cliente_id: clienteId, referencia: `SIM-${p.gestion_id}`, monto: p.monto_promesa ?? 0, origen: "simulador", promesa_id: p.gestion_id });
+        yield mk(n, "bd", "supervisor", "seguimiento", "SIMULACIÓN: el simulador genera un pago simulado", "No es un pago confirmado ni una conciliación bancaria: no cambia el saldo.", "info");
+      } else {
+        ultimo = "rota";
+        yield mk(n, "bd", "supervisor", "seguimiento", "No se encontró el pago", "Llegó la fecha y no hay pago: promesa incumplida. Siguiente paso permitido: nuevo contacto según reglas o derivación a un asesor.", "rechazado");
+      }
+    }
     await ctx.gestiones.actualizarPromesa(p.gestion_id, ultimo);
     await ctx.gestiones.insertar({
       cliente_id: clienteId, agente: "supervisor", accion: "seguimiento", canal: null, mensaje: null, resultado: ultimo, motivo_no_pago: p.motivo_no_pago,
       monto_promesa: p.monto_promesa, fecha_promesa: p.fecha_promesa, estado_promesa: ultimo, derivado_humano: false,
-      justificacion: `Promesa #${p.gestion_id} marcada como ${ultimo}.`,
+      justificacion: `Promesa #${p.gestion_id} marcada como ${ultimo.replace("_", " ")}.`, origen: "supervisor", aprobacion: "no_aplica", motor: "reglas",
     });
-    yield mk(n, "supervisor", "bd", "registro", `Marca la promesa como ${ultimo}`, undefined, ok ? "ok" : "rechazado");
+    yield mk(n, "supervisor", "bd", "registro", `Marca la promesa como ${ultimo.replace("_", " ")}`, undefined, ultimo === "rota" ? "rechazado" : "ok");
   }
-  await ctx.cartera.setPagoATiempo(clienteId, ultimo === "cumplida" ? true : c.sim_pago_base);
-  yield { tipo: "fin", estado: "cerrado", detalle: `Promesa ${ultimo}` };
+  // pago_a_tiempo alimenta el lift SIMULADO del dashboard; solo una promesa cumplida (confirmada o simulada) lo pone en true.
+  await ctx.cartera.setPagoATiempo(clienteId, ultimo !== "rota" ? true : c.sim_pago_base);
+  yield { tipo: "fin", estado: "cerrado", detalle: `Promesa ${ultimo.replace("_", " ")}` };
 }
 
 /** Cierre de mes simulado: resuelve todas las promesas y fija `pago_a_tiempo` de toda la cartera. */
@@ -55,14 +78,14 @@ export async function cerrarMes(ctx: Ctx) {
       for await (const ev of seguimientoCliente(ctx, c.cliente_id)) void ev;
       const g = await ctx.gestiones.porCliente(c.cliente_id);
       const ult = [...g].reverse().find((x) => x.accion === "seguimiento");
-      if (ult?.estado_promesa === "cumplida") cumplidas++; else rotas++;
+      if (ult?.estado_promesa === "cumplida" || ult?.estado_promesa === "cumplida_simulada") cumplidas++; else rotas++;
     } else {
       const g = await ctx.gestiones.porCliente(c.cliente_id);
-      const cumplio = g.some((x) => x.accion === "promesa" && x.estado_promesa === "cumplida");
+      const cumplio = g.some((x) => x.accion === "promesa" && (x.estado_promesa === "cumplida" || x.estado_promesa === "cumplida_simulada"));
       await ctx.cartera.setPagoATiempo(c.cliente_id, cumplio ? true : c.sim_pago_base);
     }
   }
-  return { clientes: clientes.length, promesasCumplidas: cumplidas, promesasRotas: rotas };
+  return { clientes: clientes.length, promesasCumplidasSimuladas: cumplidas, promesasRotas: rotas };
 }
 
 /** Procesa N clientes de alta prioridad (tratamiento y sin gestión previa) sin streaming; el humano usa el borrador del Gestor. */
@@ -73,7 +96,7 @@ export async function procesarLote(ctx: Ctx, n: number) {
     .map((c) => ({ c, p: ctx.modelo.probabilidad(c) }))
     .sort((a, b) => b.p - a.p)
     .map((x) => x.c);
-  const res = { procesados: 0, promesas: 0, derivados: 0, cerrados: 0 };
+  const res = { procesados: 0, promesas: 0, derivados: 0, derivadosPendientes: 0, cerrados: 0 };
   for (const c of ordenados) {
     if (res.procesados >= n) break;
     if ((await ctx.gestiones.porCliente(c.cliente_id)).length) continue;
@@ -90,7 +113,9 @@ export async function procesarLote(ctx: Ctx, n: number) {
         if (ev.tipo === "fin") fin = ev;
       }
     }
-    if (fin?.estado === "promesa_registrada") res.promesas++; else res.cerrados++;
+    if (fin?.estado === "promesa_registrada") res.promesas++;
+    else if (fin?.estado === "esperando_humano") res.derivadosPendientes++; // el acuerdo no pasó las validaciones: sigue con una persona
+    else res.cerrados++;
   }
   return res;
 }

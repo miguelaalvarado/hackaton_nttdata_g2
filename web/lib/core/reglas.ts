@@ -77,3 +77,35 @@ export const maxContactosSemana = (reglas: Regla[]): number => {
   const m = r?.valor.match(/(\d+)/);
   return m ? +m[1] : 3;
 };
+
+/** Intentos consecutivos sin respuesta tras los cuales se deriva a una persona (regla `sin_respuesta`). */
+export const maxIntentosSinRespuesta = (reglas: Regla[]): number => {
+  const r = reglasDe(reglas, "sin_respuesta")[0];
+  const m = r?.valor.match(/(\d+)/);
+  return m ? +m[1] : 2;
+};
+
+/** Motivos que suspenden la negociación (regla `bloqueo`). */
+export const motivosBloqueo = (reglas: Regla[]): string[] =>
+  reglasDe(reglas, "bloqueo").flatMap((r) => {
+    const m = r.condicion.toLowerCase().match(/motivo\s*=\s*(.+)$/);
+    return m ? m[1].split(",").map((s) => s.trim()) : [];
+  });
+
+/**
+ * Mayor plazo (días) que permite una opción de pago. Con `ctx` solo cuentan las opciones APLICABLES a ese cliente/motivo;
+ * sin `ctx`, el máximo absoluto de todas las reglas (0 si ninguna mueve fechas).
+ */
+export function maxDiasAutorizados(reglas: Regla[], ctx?: { motivo?: string; dias_atraso?: number }): number {
+  return Math.max(0, ...reglasDe(reglas, "opcion_pago").filter((r) => !ctx || evalCondicion(r.condicion, ctx)).map((r) => maxDiasOpcion(r) ?? 0));
+}
+
+/** Primer día/hora permitidos desde `desdeIso` (inclusive) respetando la regla de horario. */
+export function siguienteSlotPermitido(reglas: Regla[], desdeIso: string, hora: string): { fecha: string; hora: string } {
+  let fecha = desdeIso;
+  for (let i = 0; i < 14; i++) {
+    if (!violaHorario(reglas, fecha, hora)) return { fecha, hora };
+    fecha = sumarDias(fecha, 1);
+  }
+  return { fecha, hora };
+}
