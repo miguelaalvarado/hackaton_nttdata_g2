@@ -22,6 +22,10 @@ def integration_keys(monkeypatch):
     keys = {role: "test-" + secrets.token_hex(16) for role in sorted(ROLES)}
     monkeypatch.setenv("NEXO_INTEGRATION_KEYS", json.dumps({k: r for r, k in keys.items()}))
     monkeypatch.setenv("NEXO_ENABLE_DEV_SEED", "1")
+    # Las pruebas nunca leen .env ni usan claves de proveedores reales
+    monkeypatch.setenv("NEXO_DISABLE_DOTENV", "1")
+    for var in ("LLM_PROVIDER", "OPENAI_API_KEY", "OPENAI_MODEL", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
     return keys
 
 

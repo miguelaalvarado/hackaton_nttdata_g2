@@ -11,11 +11,11 @@ import re
 import uuid
 from datetime import datetime
 
-from . import compliance, interpreter, llm, messages, scheduling, strategy
+from . import compliance, interpreter, llm, llm_agent, messages, scheduling, strategy
 from .db import connect, transaction, utcnow
 from .demo_agent import build_context
 from .repositories import AgentRunRepo, ContactRepo, ConversationRepo, CustomerRepo
-from .schemas import AgentProposal, AgentProposalRequest
+from .schemas import AgentProposal, AgentProposalRequest, StrategyCode
 
 ORCHESTRATOR = "orchestrator"
 PROPOSER_ID = "nexo-orchestrator"
@@ -72,6 +72,12 @@ def contact_agent(conn, customer_id: str, now: datetime) -> dict:
     return plan.public()
 
 
+def conversational_agent_rules(ctx, strat, channel: str, last_reply: str | None) -> dict:
+    """Plantillas deterministas."""
+    draft = messages.draft_message(ctx, strat.model_copy(update={"channel": channel}))
+    return {"subject": draft.subject, "body": draft.body, "language": draft.language, "responds_to": last_reply, "engine": "rules"}
+
+
 def conversational_agent(ctx, strat, channel: str, last_reply: str | None, offers: list[str] | None = None) -> dict:
     """4. Conversational Agent: plantillas (reglas) o, si hay ANTHROPIC_API_KEY, redacción con LLM. El pie de baja lo pone el código."""
     draft = messages.draft_message(ctx, strat.model_copy(update={"channel": channel}))
@@ -92,9 +98,41 @@ def conversational_agent(ctx, strat, channel: str, last_reply: str | None, offer
     return out
 
 
+def conversational_openai(ctx, strat, channel: str, last_reply: str | None) -> tuple[dict, dict | None]:
+    """4. Conversational Agent con OpenAI (tool calling de solo lectura). Devuelve (conv, parsed|None).
+
+    Si la API falla o el modelo incumple (no consultó la BD, JSON inválido...) cae a reglas y lo etiqueta como fallback."""
+    ai = llm_agent.run_agent(ctx.customer.customer_id, last_reply, strat.code.value, channel)
+    meta = {"provider": "openai", "model": ai["model"], "tools_used": ai["tools_used"], "tool_log": ai["tool_log"],
+            "duration_ms": ai["duration_ms"], "usage": ai["usage"], "rounds": ai["rounds"], "response_ids": ai["response_ids"]}
+    if not ai["ok"]:
+        conv = conversational_agent_rules(ctx, strat, channel, last_reply)
+        conv.update(meta | {"engine": "rules", "result": "fallback_to_rules",
+                            "fallback": {"from": f"openai:{ai['model'] or '?'}", "reason": ai["error"]}})
+        return conv, None
+    p = ai["parsed"]
+    body = p["body"].strip()
+    if p["offers"] and not compliance.HEDGE_PATTERN.search(body):  # garantía en código: no depende del LLM
+        body += " Las opciones de apoyo que te comentamos están sujetas a evaluación."
+    if not compliance.OPT_OUT_PATTERN.search(body):
+        body += messages.FOOTER[ctx.customer.language]
+    conv = {"subject": p["subject"], "body": body, "language": ctx.customer.language, "responds_to": last_reply,
+            "engine": f"llm:openai:{ai['model']}", "result": "ok", "interpretation": p["interpretation"],
+            "customer_intent": p["customer_intent"], "intent_confidence": p["intent_confidence"],
+            "needs_human_attention": p["needs_human_attention"], "llm_strategy_code": p["strategy_code"],
+            "llm_offers": p["offers"], "llm_rationale": p["rationale"]} | meta
+    return conv, p
+
+
 def negotiation_agent(strat_offers: list[str], last_reply: str | None) -> dict:
     """5. Negotiation Agent: solo opciones condicionadas ('sujetas a evaluación'); nunca montos ni compromisos."""
-    offers = list(strat_offers)
+    offers = []
+    for o in strat_offers[:3]:  # tope de 3 opciones; toda opción debe quedar condicionada
+        o = o.strip()
+        if o and not re.search(r"sujet[oa]s? a (evaluaci[oó]n|aprobaci[oó]n)", o, re.IGNORECASE):
+            o += " (sujeta a evaluación)"
+        if o and o not in offers:
+            offers.append(o)
     extra = None
     if last_reply and DIFFICULTY.search(last_reply) and not any("Reprogramación" in o for o in offers):
         extra = "Reprogramación de fecha de pago (sujeta a evaluación)"
@@ -139,9 +177,14 @@ def propose_case(customer_id: str, now: datetime | None = None) -> dict:
     strat_model = strategy.select_strategy(ctx, interp_model)
     run.log("strategy_agent", {"band": interp_model.band.value}, strategy_agent(ctx, interp_model))
     run.log("contact_agent", {"policy": "scheduling.Policy"}, contact)
-    conv = conversational_agent(ctx, strat_model, contact["channel"], last_reply, strat_model.proposed_offers)
-    run.log("conversational_agent", {"channel": contact["channel"]}, conv, engine=conv["engine"])
-    nego = negotiation_agent(strat_model.proposed_offers, last_reply)
+    parsed = None
+    if llm.provider() == "openai":
+        conv, parsed = conversational_openai(ctx, strat_model, contact["channel"], last_reply)
+    else:
+        conv = conversational_agent(ctx, strat_model, contact["channel"], last_reply, strat_model.proposed_offers)
+    run.log("conversational_agent", {"channel": contact["channel"], "last_reply": last_reply, "provider": llm.provider() or "rules"},
+            conv, engine=conv["engine"])
+    nego = negotiation_agent(parsed["offers"] if parsed else strat_model.proposed_offers, last_reply)
     run.log("negotiation_agent", {"strategy": strat_model.code.value}, nego)
 
     body = conv["body"]
@@ -150,9 +193,10 @@ def propose_case(customer_id: str, now: datetime | None = None) -> dict:
     contact_at = datetime.fromisoformat(contact["scheduled_at"])
     proposal = AgentProposalRequest(
         proposal_id=f"prop-{orch_id}", agent_id=PROPOSER_ID, agent_version="orq-1.0", context=ctx,
-        proposal=AgentProposal(strategy_code=strat_model.code, channel=contact["channel"], contact_at=contact_at,
+        proposal=AgentProposal(strategy_code=StrategyCode(parsed["strategy_code"]) if parsed else strat_model.code,
+                               channel=contact["channel"], contact_at=contact_at,
                                subject=conv["subject"], body=body, offers=nego["offers"],
-                               rationale=f"{strat_model.rationale} {contact['reason']}"[:1500]))
+                               rationale=(f"{parsed['rationale']} " if parsed else f"{strat_model.rationale} ") + contact["reason"]))
     decision = evaluate_agent_proposal(proposal)  # AI Decision Engine = supervisor/Compliance (persiste y deja pendiente)
     run.log("compliance_agent", {"proposal_id": proposal.proposal_id},
             {"status": decision.compliance.status, "violations": decision.compliance.violations,
@@ -162,7 +206,10 @@ def propose_case(customer_id: str, now: datetime | None = None) -> dict:
             "case_version": decision.case_version, "decision_id": decision.decision_id,
             "compliance_status": decision.compliance.status, "violations": decision.compliance.violations,
             "review_status": decision.review_status, "requires_human_approval": True, "sent": False,
-            "proposed": {"strategy": strat_model.code.value, "channel": contact["channel"],
+            "conversational": {k: conv.get(k) for k in ("engine", "result", "provider", "model", "tools_used", "duration_ms", "usage",
+                                                      "interpretation", "customer_intent", "intent_confidence", "needs_human_attention",
+                                                      "fallback")},
+            "proposed": {"strategy": StrategyCode(parsed["strategy_code"]).value if parsed else strat_model.code.value, "channel": contact["channel"],
                          "contact_at": contact["scheduled_at"], "offers": nego["offers"]}, "steps": run.steps}
 
 

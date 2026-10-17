@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import streamlit as st
 
-from app import decision_service, scheduling
+from app import decision_service, llm, scheduling
 from app.calendar_pe import LIMA
 from app.db import connect, db_path, fmt_money, transaction, utcnow
 from app.events import EventIn, EventRejected, process_event
@@ -34,6 +34,13 @@ with connect() as c:
     customers = [x["customer_id"] for x in list_customers(c)]
 side = st.sidebar
 side.caption(f"BD: `{db_path()}`")
+_st = llm.status()
+if _st["active"] == "openai":
+    side.success(f"IA generativa: **OpenAI activo** · modelo `{_st['model'] or '(falta OPENAI_MODEL)'}`")
+elif _st["active"] == "anthropic":
+    side.success(f"IA generativa: Anthropic activo · `{_st['model']}`")
+else:
+    side.warning("IA generativa: **inactiva** (todo corre con reglas). Ver `.env.example`.")
 if not customers and side.button("Cargar clientes demo"):
     with connect() as c:
         seed_demo(c)
@@ -75,7 +82,13 @@ st.divider()
 
 # ---------------------------------------------------------------- 1. evaluación
 st.subheader(f"{status(1)} 1 · Evaluación → estrategia → cumplimiento (orquestador)")
+SAMPLE = "Hola, este mes me recortaron horas en el trabajo y no me alcanza. ¿Podría pagar la mitad el día 30 y el resto después?"
+reply = st.text_area("Respuesta FICTICIA del cliente (opcional; se registra como mensaje real del cliente en la BD)", SAMPLE, key="reply", height=70)
 if st.button("Evaluar caso", disabled=not ready(1), key="b1"):
+    if reply.strip():
+        with connect() as c:
+            process_event(c, EventIn(event_id=f"dash-reply-{uuid.uuid4().hex[:8]}", event_type="CUSTOMER_REPLIED", customer_id=cid,
+                                     source="customer_channel", payload={"text": reply.strip(), "channel": "email"}))
     out = propose_case(cid)
     if out["halted"]:
         st.error(f"Orquestador detenido: {out['reason']}")
@@ -92,6 +105,16 @@ if G.get("out1"):
     cols[3].metric("Conversational", by["conversational_agent"]["engine"])
     cols[4].metric("Negotiation", f"{len(o['proposed']['offers'])} opción(es)")
     cols[5].metric("Compliance", "OK" if o["compliance_status"] == "pending_human_approval" else "BLOQUEADA")
+    cv = o["conversational"]
+    if cv["engine"].startswith("llm:openai"):
+        st.success(f"✅ **IA real: OpenAI** · modelo `{cv['model']}` · herramientas de solo lectura: {', '.join(cv['tools_used'])} · "
+                   f"{cv['duration_ms'] / 1000:.1f} s · tokens {cv['usage']['input_tokens']}→{cv['usage']['output_tokens']}")
+        st.info(f"**Interpretación del modelo:** [{cv['customer_intent']} · confianza {cv['intent_confidence']}] {cv['interpretation']}"
+                + (" — ⚠️ requiere atención humana" if cv["needs_human_attention"] else ""))
+    elif cv.get("fallback"):
+        st.warning(f"⚪ **Reglas (fallback)**: OpenAI falló o incumplió y se usó la plantilla. Motivo: {cv['fallback']['reason']}")
+    else:
+        st.caption("⚪ Redacción por reglas/plantillas (sin IA generativa activa).")
     st.code(by["conversational_agent"]["body"], language="text")
     st.caption(f"Decisión `{o['decision_id']}` · pendiente de aprobación humana · enviado: {o['sent']}")
 

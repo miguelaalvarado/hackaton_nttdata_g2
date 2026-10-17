@@ -65,6 +65,13 @@ dot.append("}")
 st.graphviz_chart("\n".join(dot), width="content")
 st.markdown("🟦 **REGLAS** = determinista (sin IA generativa) &nbsp; 🟩 **IA (LLM)** = la traza registra `llm:<modelo>` &nbsp; ⬜ sin corridas &nbsp; 🟨 persona")
 
+conv_runs = [r for r in runs if r["agent_name"] == "conversational_agent"]
+n_ai = sum(r["output"].get("engine", "").startswith("llm:openai") for r in conv_runs)
+n_fb = sum(bool(r["output"].get("fallback")) for r in conv_runs)
+m1, m2, m3 = st.columns(3)
+m1.metric("Ejecuciones con OpenAI real", n_ai)
+m2.metric("Fallbacks a reglas (API falló)", n_fb)
+m3.metric("Solo reglas", len(conv_runs) - n_ai - n_fb)
 any_llm = any(kind(c[0]) == "llm" for c in COMPONENTS)
 if any_llm:
     st.success("Hay corridas con LLM real en este conjunto (ver `engine` en la traza del Conversational Agent).")
@@ -86,6 +93,7 @@ for cid_, label, desc, src, llm_capable in COMPONENTS:
             st.json({"input": r["input"], "output": r["output"]}, expanded=False)
 
 st.subheader("Línea de tiempo de corridas")
-st.dataframe([{"Hora": local(r["started_at"]), "Componente": r["agent_name"], "Cliente": r["customer_id"], "Motor": r["output"].get("engine", "rules"),
+st.dataframe([{"Hora": local(r["started_at"]), "Componente": r["agent_name"], "Cliente": r["customer_id"], "Motor": r["output"].get("engine", "rules") + (" ⚠ fallback" if r["output"].get("fallback") else ""),
+               "Herramientas": ", ".join(r["output"].get("tools_used", [])), "ms": r["output"].get("duration_ms", ""),
                "Estado": r["status"], "Trigger": r["trigger"], "Decisión": (r["decision_id"] or "")[:8]} for r in runs[:100]],
              hide_index=True, width="stretch")

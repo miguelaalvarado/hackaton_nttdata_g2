@@ -271,3 +271,25 @@ Primera vez: en *Demo guiada* pulsa **➕ Nuevo caso demo** (repetible sin reini
 Cada traza (`agent_runs.output.engine`) dice `rules` o `llm:<modelo>`; el mapa lo muestra y avisa si ninguna corrida usó IA.
 El LLM solo redacta el cuerpo: el pie de baja y la cobertura "sujeta a evaluación" los añade el código, y el borrador sigue pasando por
 cumplimiento y por revisión humana. **El adaptador LLM está probado con un doble del SDK, no contra la API real** (sin clave en el entorno de desarrollo).
+
+## IA real con OpenAI (Conversational Agent)
+
+Con `LLM_PROVIDER=openai` el Conversational Agent usa la **Responses API** con *function calling* de **solo lectura** sobre SQLite
+(`get_customer_file`, `get_commitments`, `get_conversation`), interpreta la última respuesta del cliente y devuelve una **propuesta
+estructurada** (JSON Schema estricto). El orquestador la envía al **AI Decision Engine** (cumplimiento) y queda **pendiente de aprobación humana**.
+
+Garantías: el modelo no tiene herramientas de escritura (una herramienta desconocida o de otro cliente se rechaza y se registra);
+no elige canal ni horario (Contact Agent, reglas); no registra pagos ni compromisos ni aprueba decisiones; `store=False`; si el modelo no
+consulta la base, la API falla o el JSON es inválido, se **descarta y se usan reglas**, etiquetado `fallback` con su motivo.
+Cada corrida queda en `agent_runs` con `provider`, `model`, `tools_used`, `tool_log`, `duration_ms`, `usage` y `result`.
+
+**Reproducir localmente (solo datos sintéticos; la clave vive solo en tu `.env`, ignorado por git):**
+```bash
+cd ai_decision_engine && source .venv/bin/activate
+pip install openai
+cp .env.example .env && chmod 600 .env     # edita .env: LLM_PROVIDER=openai, OPENAI_API_KEY=..., OPENAI_MODEL=<tu modelo>
+python3 -m scripts.check_openai            # 1) modelo disponible (models.retrieve)  2) llamada real mínima a Responses API
+python3 -m scripts.demo_openai             # ejecución real con respuesta ficticia; verifica SQLite; exit 2 si NO usó OpenAI
+streamlit run dashboard/streamlit_app.py   # Demo guiada: badge "IA real: OpenAI" con modelo, herramientas, duración y tokens
+```
+Pruebas (no usan red ni claves reales; el SDK se sustituye por un doble con las mismas formas de la API): `pytest -q`.
