@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest
 
-APP = str(Path(__file__).resolve().parent.parent / "dashboard" / "streamlit_app.py")
+APP = str(Path(__file__).resolve().parent.parent / "dashboard" / "views" / "consola_tecnica.py")
 
 
 def test_dashboard_buttons_mutate_real_database(isolated_db):

@@ -179,3 +179,23 @@ def test_provider_status_never_leaks_key_and_dotenv_is_private(tmp_path, monkeyp
     import subprocess
     ignored = subprocess.run(["git", "check-ignore", "-q", ".env"], cwd=llm.__file__.rsplit("/app/", 1)[0]).returncode
     assert ignored == 0  # .env está ignorado por git
+
+
+def test_reasoning_models_get_reasoning_budget_and_incomplete_is_diagnosed(env):
+    """Regresión del fallo REAL visto con gpt-5-mini: el razonamiento agotaba max_output_tokens y el texto llegaba vacío."""
+    env.setenv("OPENAI_MODEL", "gpt-5-mini")
+    fake = use(env, FakeOpenAI(good_turns()))
+    out = propose_case(CID)
+    k = fake.calls[0]
+    assert k["max_output_tokens"] >= 4000 and k["reasoning"] == {"effort": "low"} and k["include"] == ["reasoning.encrypted_content"]
+    assert conv_step(out)["engine"] == "llm:openai:gpt-5-mini"
+    inc = resp(text="")
+    inc.status, inc.incomplete_details = "incomplete", NS(reason="max_output_tokens")
+    use(env, FakeOpenAI([resp([call("get_customer_file", customer_id=CID)]), inc]))
+    conv = conv_step(propose_case(CID))
+    assert conv["engine"] == "rules" and "incompleta" in conv["fallback"]["reason"] and "max_output_tokens" in conv["fallback"]["reason"]
+    # modelos clásicos conservan el presupuesto pequeño y no envían 'reasoning'
+    env.setenv("OPENAI_MODEL", "gpt-4.1-mini")
+    fake2 = use(env, FakeOpenAI(good_turns()))
+    propose_case(CID)
+    assert "reasoning" not in fake2.calls[0] and fake2.calls[0]["max_output_tokens"] == 1200

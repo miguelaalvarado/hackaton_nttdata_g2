@@ -39,7 +39,8 @@ def seed_demo(conn: sqlite3.Connection, now: datetime | None = None) -> dict:
     return {"created": created, "existing": [d[0] for d in DEMO if d[0] not in created]}
 
 
-def create_demo_case(conn: sqlite3.Connection, now: datetime | None = None, days_to_due: int = -3) -> str:
+def create_demo_case(conn: sqlite3.Connection, now: datetime | None = None, days_to_due: int = -3,
+                     first_name: str = "Demo") -> str:
     """Crea un cliente ficticio NUEVO (id único) para repetir la demo guiada sin reiniciar la base."""
     import uuid
     now = now or utcnow()
@@ -47,7 +48,7 @@ def create_demo_case(conn: sqlite3.Connection, now: datetime | None = None, days
     suffix = uuid.uuid4().hex[:4].upper()
     cid = f"CLI-D{suffix}"
     with transaction(conn):
-        CustomerRepo(conn).create(now, cid, "Demo", "es", ["email", "sms", "whatsapp", "phone_call"], None)
+        CustomerRepo(conn).create(now, cid, first_name, "es", ["email", "sms", "whatsapp", "phone_call"], None)
         loan = LoanRepo(conn).create(now, cid, "personal_loan", "PEN", 8000_00, loan_id=f"LN-D{suffix}")
         for seq in (1, 2, 3):
             due = today + timedelta(days=days_to_due + 30 * (seq - 1))

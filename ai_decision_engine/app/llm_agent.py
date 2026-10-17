@@ -11,6 +11,7 @@ Garantías (verificadas por pruebas):
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import date
 
@@ -159,8 +160,12 @@ def run_agent(customer_id: str, last_reply: str | None, strategy_hint: str, chan
         items: list = [{"role": "user", "content": json.dumps(user, ensure_ascii=False)}]
         kwargs = {"model": model, "instructions": INSTRUCTIONS, "tools": TOOLS, "store": False, "max_output_tokens": 1200,
                   "text": {"format": {"type": "json_schema", "name": "nexo_proposal", "schema": SCHEMA, "strict": True}}}
-        if model.startswith(("o", "gpt-5")):  # modelos de razonamiento: con store=False hay que devolver su razonamiento cifrado
+        if model.startswith(("o", "gpt-5")):
+            # Modelos de razonamiento: con store=False hay que devolver su razonamiento cifrado, y el razonamiento consume
+            # tokens de salida (con 1200 se agotaban pensando y la respuesta quedaba 'incomplete'): más margen y esfuerzo bajo.
             kwargs["include"] = ["reasoning.encrypted_content"]
+            kwargs["reasoning"] = {"effort": os.getenv("OPENAI_REASONING_EFFORT", "low")}
+            kwargs["max_output_tokens"] = int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "6000"))
         resp = None
         for rnd in range(MAX_TOOL_ROUNDS + 1):
             resp = client.responses.create(input=items, tool_choice="required" if rnd == 0 else "auto", **kwargs)
@@ -191,6 +196,9 @@ def run_agent(customer_id: str, last_reply: str | None, strategy_hint: str, chan
                 items.append({"type": "function_call_output", "call_id": _get(call, "call_id"), "output": json.dumps(out, ensure_ascii=False)})
         else:
             raise RuntimeError("Demasiadas rondas de herramientas sin respuesta final")
+        if _get(resp, "status") == "incomplete":
+            reason = _get(_get(resp, "incomplete_details"), "reason", "desconocido")
+            raise RuntimeError(f"Respuesta incompleta del modelo ({reason}); aumenta OPENAI_MAX_OUTPUT_TOKENS")
         if "get_customer_file" not in res["tools_used"]:
             raise RuntimeError("El modelo no consultó el expediente (get_customer_file): respuesta descartada")
         parsed = Proposal.model_validate_json(_get(resp, "output_text") or "")

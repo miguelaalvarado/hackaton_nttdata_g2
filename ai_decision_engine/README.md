@@ -249,18 +249,23 @@ pago confirmado (idempotente) → saldo actualizado → decisión obsoleta inval
 **Si se integra Next.js**: usar Backend-for-Frontend; claves solo en el servidor (sin `NEXT_PUBLIC_`), adjuntar `X-Integration-Key`
 en rutas servidor, autenticar y autorizar al usuario antes de permitir revisión humana, y no publicar la API sin HTTPS.
 
-## Demo visual local (Streamlit)
+## NEXO AI · Demo Arena (Streamlit)
 
 ```bash
-cd ai_decision_engine
-python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+cd ai_decision_engine && source .venv/bin/activate
 streamlit run dashboard/streamlit_app.py        # http://localhost:8501 (atado a 127.0.0.1)
 ```
-Menú lateral: **streamlit app** (consola completa) · **Demo guiada** (caso completo en 5 clics: evaluar → aprobar → contacto simulado →
-seguimiento → pago; muestra lo que queda en SQLite) · **Mapa de componentes** (diagrama del orquestador y los 7 componentes con sus trazas reales).
-Primera vez: en *Demo guiada* pulsa **➕ Nuevo caso demo** (repetible sin reiniciar la base).
+Una sola app con navegación: **Portafolio** (indicadores reales de SQLite) · **Expediente del cliente** (Customer 360, siguiente mejor acción con
+aprobación humana, simulación de eventos, historial; IDs técnicos solo en *Avanzado*) · **Agentes en vivo** (orquestador + ANALISTA / GESTOR IA / SUPERVISOR
+sobre los 7 componentes, leídos de `agent_runs`) · **Demo en 2 minutos** (caso de María en 7 pasos) · **Consola técnica** (la consola completa anterior).
+Guía de presentación: [`docs/GUIA_PRESENTACION.md`](docs/GUIA_PRESENTACION.md).
 
-![Mapa de componentes](docs/mapa_componentes.png)
+Reglas de honestidad de la UI: la etiqueta **IA REAL** solo aparece si existe una traza en `agent_runs` con `engine=llm:*`; si OpenAI falló se muestra
+**FALLBACK A REGLAS** con su motivo; sin proveedor se muestra **REGLAS**. Los datos demo nuevos solo se crean con confirmación y nunca reemplazan los existentes.
+
+![Portafolio](docs/screens/1_portafolio.png)
+![Demo en 2 minutos](docs/screens/2_demo_2min.png)
+![Agentes en vivo](docs/screens/3_agentes_en_vivo.png)
 
 ### Qué es IA y qué son reglas (estado real)
 | Componente | Motor hoy | ¿IA generativa? |
@@ -268,7 +273,7 @@ Primera vez: en *Demo guiada* pulsa **➕ Nuevo caso demo** (repetible sin reini
 | 0 Orchestrator, 1 Risk, 2 Strategy, 3 Contact, 5 Negotiation, 6 Compliance, 7 Follow-up | **reglas/plantillas deterministas** | **No** |
 | 4 Conversational | reglas (plantillas); **adaptador LLM opcional** `app/llm.py` | Solo si existe `ANTHROPIC_API_KEY` (`pip install anthropic`; modelo `NEXO_LLM_MODEL`) |
 
-Cada traza (`agent_runs.output.engine`) dice `rules` o `llm:<modelo>`; el mapa lo muestra y avisa si ninguna corrida usó IA.
+Cada traza (`agent_runs.output.engine`) dice `rules` o `llm:<modelo>`; la vista *Agentes en vivo* lo muestra y avisa si ninguna corrida usó IA.
 El LLM solo redacta el cuerpo: el pie de baja y la cobertura "sujeta a evaluación" los añade el código, y el borrador sigue pasando por
 cumplimiento y por revisión humana. **El adaptador LLM está probado con un doble del SDK, no contra la API real** (sin clave en el entorno de desarrollo).
 
