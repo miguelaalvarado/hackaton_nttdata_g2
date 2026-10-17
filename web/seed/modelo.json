@@ -1,0 +1,28 @@
+{
+  "features": [
+    "sin_sueldo",
+    "cobertura_cuota",
+    "uso_linea",
+    "atrasos_6m",
+    "dias_atraso_30"
+  ],
+  "coef": [
+    1.54754,
+    -0.38143,
+    0.74961,
+    0.14446,
+    0.21134
+  ],
+  "intercept": -0.90924,
+  "metricas": {
+    "origen": "SINTÉTICO: patrones plantados con ruido; no es desempeño en producción",
+    "n_total": 800,
+    "n_test": 240,
+    "tasa_no_pago": 0.3167,
+    "auc_modelo": 0.8074,
+    "auc_regla_docx": 0.7869,
+    "ks_modelo": 0.5144,
+    "precision_top20": 0.7917,
+    "lift_top20": 2.5
+  }
+}

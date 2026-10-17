@@ -72,3 +72,43 @@ textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg);
 .turn { border-left: 3px solid var(--line); padding-left: 12px; margin: 0 0 14px; } .turn-h { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .bubble { padding: 8px 12px; border-radius: 10px; margin: 4px 0; max-width: 85%; } .bubble.out { background: var(--bg); } .bubble.in { background: var(--accent); color: #fff; margin-left: auto; }
 .turn-f { margin-top: 4px; }
+
+/* ---- Fase 2: navegación, filtros y visor agéntico ---- */
+.topnav { display: flex; gap: 20px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+.topnav b { margin-right: 8px; }
+.filtros { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+.pill { border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 13px; color: var(--ink); background: var(--card); }
+.pill.on { background: var(--accent); color: #fff; border-color: var(--accent); text-decoration: none; }
+code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+.estado { font-size: 13px; font-weight: 600; color: var(--muted); }
+.estado.corriendo { color: var(--accent); } .estado.esperando_humano { color: var(--mid); }
+
+.diag-card { padding: 12px; }
+.diag { position: relative; height: 380px; border-radius: 8px; background: var(--bg); overflow: hidden; }
+.diag-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+.edge { stroke: var(--line); stroke-width: 2; stroke-dasharray: 4 4; }
+.edge.on { stroke: var(--accent); stroke-dasharray: none; stroke-width: 3; }
+.nodo { position: absolute; transform: translate(-50%, -50%); width: 150px; text-align: center; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 8px 6px; transition: border-color .3s, box-shadow .3s, transform .3s; }
+.nodo .ico { display: block; font-size: 22px; }
+.nodo small { display: block; color: var(--muted); font-size: 11px; line-height: 1.2; }
+.nodo.origen { border-color: var(--mid); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mid) 25%, transparent); }
+.nodo.destino { border-color: var(--accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 28%, transparent); transform: translate(-50%, -50%) scale(1.06); }
+.nodo.espera { border-color: var(--mid); animation: latido 1.2s infinite; }
+@keyframes latido { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--mid) 30%, transparent); } }
+.paquete { position: absolute; transform: translate(-50%, -50%); font-size: 26px; transition: left 1.1s cubic-bezier(.45,.05,.3,1), top 1.1s cubic-bezier(.45,.05,.3,1); filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); pointer-events: none; z-index: 5; }
+.paquete.rechazado { filter: drop-shadow(0 0 6px var(--high)) hue-rotate(140deg); }
+.paquete.ok { filter: drop-shadow(0 0 6px var(--low)); }
+.vuelo { margin-top: 10px; min-height: 48px; }
+.humano { border-color: var(--mid); margin-top: 12px; }
+.humano textarea { margin: 6px 0; }
+.logbox { max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.logitem { text-align: left; border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 6px 10px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
+.logitem.ok { border-left-color: var(--low); } .logitem.rechazado { border-left-color: var(--high); } .logitem.info { border-left-color: var(--accent); }
+.logitem .who { font-size: 11px; color: var(--muted); } .logitem .tit { font-weight: 600; font-size: 14px; } .logitem .txt { font-size: 13px; color: var(--muted); }
+.json { font-size: 12px; background: var(--bg); padding: 8px; border-radius: 6px; overflow: auto; max-height: 220px; }
+.bubble small { display: block; font-size: 11px; opacity: .75; }
+.hbar { display: grid; grid-template-columns: 130px 1fr 28px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
+.hbar i { display: block; height: 10px; border-radius: 5px; background: var(--accent); }
+.hbar b { text-align: right; }
+@media (max-width: 760px) { .nodo { width: 110px; } .nodo small { display: none; } .diag { height: 320px; } }

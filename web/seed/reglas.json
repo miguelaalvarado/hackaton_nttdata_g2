@@ -1,0 +1,58 @@
+[
+  {
+    "regla_id": 1,
+    "tipo": "horario",
+    "condicion": "lunes a sábado",
+    "valor": "08:00-20:00",
+    "descripcion": "Horario permitido de contacto (demo). Ajustar a la norma real: puede excluir fines de semana y feriados."
+  },
+  {
+    "regla_id": 2,
+    "tipo": "limite_contacto",
+    "condicion": "por cliente",
+    "valor": "máx. 3 por semana",
+    "descripcion": "Contactos iniciales por cliente en 7 días."
+  },
+  {
+    "regla_id": 3,
+    "tipo": "opcion_pago",
+    "condicion": "motivo = retraso_ingresos",
+    "valor": "mover la fecha de pago hasta 7 días",
+    "descripcion": "Reprogramación corta cuando el ingreso llega tarde."
+  },
+  {
+    "regla_id": 4,
+    "tipo": "opcion_pago",
+    "condicion": "dias_atraso 1–30",
+    "valor": "fraccionar la cuota en 2 pagos",
+    "descripcion": "Fraccionamiento para atrasos de hasta 30 días."
+  },
+  {
+    "regla_id": 5,
+    "tipo": "escalamiento",
+    "condicion": "motivo = desempleo, reclamo, desconoce_deuda",
+    "valor": "pasar a un humano",
+    "descripcion": "Casos sensibles los atiende una persona."
+  },
+  {
+    "regla_id": 6,
+    "tipo": "opcion_pago",
+    "condicion": "motivo = olvido",
+    "valor": "pagar hoy por app o transferencia",
+    "descripcion": "(demo, no está en el documento) Pago inmediato cuando solo fue olvido."
+  },
+  {
+    "regla_id": 7,
+    "tipo": "opcion_pago",
+    "condicion": "motivo = iliquidez",
+    "valor": "mover la fecha de pago hasta 7 días",
+    "descripcion": "(demo, no está en el documento) Reprogramación corta por falta de liquidez."
+  },
+  {
+    "regla_id": 8,
+    "tipo": "lenguaje",
+    "condicion": "siempre",
+    "valor": "embargo, denuncia, policía, cárcel, familiares, vecinos, demanda judicial",
+    "descripcion": "(demo) Términos prohibidos en cualquier mensaje."
+  }
+]

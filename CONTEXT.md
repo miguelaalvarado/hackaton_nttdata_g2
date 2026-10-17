@@ -1,5 +1,16 @@
 # Contexto del proyecto — Hack AI Agents (Perú Tech Week, 17-oct-2026)
 
+> **ESTADO ACTUAL (fase 2, rama `phase2`).** La app ya no usa el diseño de las secciones 5-9 de este documento. Ahora implementa
+> `Flujo y Perfiles de Cobranza.docx`: 3 agentes (Analista, Gestor, Supervisor) y 3 tablas SQLite (`cartera`, `gestiones`, `reglas`),
+> con un visor en vivo del paso de mensajes entre agentes, incluido el asesor humano. Jev y el `DecisionEngine` se eliminaron; el Gestor es
+> un LLM (DeepSeek vía OpenRouter + LangChain).
+> - Datos: `src/gen_cartera.py` genera 800 clientes **sintéticos** (solo uso de línea y atrasos se anclan a GMSC), las reglas y un modelo logístico
+>   nuevo (`web/seed/`). Sus métricas (AUC, KS, lift) miden cuánto recupera el modelo de patrones plantados, no desempeño real.
+> - Los pagos y el cumplimiento de promesas son simulados (supuestos en `web/lib/core/seguimiento.ts`); el lift de la demo refleja esos supuestos.
+> - Reglas de negocio en la tabla `reglas` (valores de ejemplo; las reglas 6-8 no están en el documento). Revisar horarios con la norma real.
+> - Fase 3: adaptadores de Supabase/Postgres para los puertos de `web/lib/core/ports.ts` y deploy en Vercel (SQLite no persiste en Vercel).
+> - Ejecutar: `cd web && npm run dev`; contenedor: ver `web/Dockerfile`. Variables en `web/.env.example`.
+
 NTT DATA + Sundai LATAM + NANDA Project (MIT Media Lab). Fuente: `Hack AI Agents (1).docx` (en la raíz del repo).
 
 ## 1. Caso elegido: B3 — Cobranza temprana (Banca)

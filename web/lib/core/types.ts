@@ -1,64 +1,99 @@
 import { z } from "zod";
-import type { Client } from "../portfolio";
 
-export type { Client };
+/** Fila de la tabla `cartera`. Los campos sim_* son solo del simulador: ningún agente los ve. */
+export type Cliente = {
+  cliente_id: string;
+  nombre: string;
+  celular: string;
+  canal_preferido: "whatsapp" | "sms" | "llamada";
+  hora_respuesta: string;
+  producto: string;
+  saldo_deuda: number;
+  monto_cuota: number;
+  fecha_vencimiento: string; // YYYY-MM-DD
+  dias_atraso: number;
+  dia_abono_sueldo: number;
+  sueldo_llego_mes: boolean;
+  saldo_cuenta: number;
+  uso_linea_tc_pct: number;
+  atrasos_ult_6m: number;
+  prob_no_pago: number | null;
+  causa_probable: string | null;
+  prioridad: "alta" | "media" | "baja" | null;
+  grupo: "tratamiento" | "control";
+  pago_a_tiempo: boolean | null;
+  sim_escenario: string;
+  sim_pago_base: boolean;
+};
 
-export const CHANNELS = ["push_sms", "whatsapp", "email", "llamada_preventiva", "llamada_asesor", "gestion_avanzada"] as const;
-export type Channel = (typeof CHANNELS)[number];
+/** Lo que ven los agentes: sin campos del simulador. */
+export type ClientePublico = Omit<Cliente, "sim_escenario" | "sim_pago_base" | "pago_a_tiempo">;
 
-export const OFFERS = ["recordatorio", "reprogramacion", "plan_de_pagos", "refinanciamiento", "aclaracion_de_cobro"] as const;
-export type Offer = (typeof OFFERS)[number];
+export type Regla = { regla_id: number; tipo: string; condicion: string; valor: string; descripcion: string };
 
-export const OUTCOMES = ["pagara", "pide_plazo", "no_puede_pagar", "rechaza", "sin_respuesta"] as const;
-export type Outcome = (typeof OUTCOMES)[number];
+export type ActorId = "analista" | "supervisor" | "gestor" | "cliente" | "humano" | "bd";
 
-/** Lo que decide el agente (texto y elecciones). Las cifras las calcula el código, no el LLM. */
-export const ProposalDraftSchema = z.object({
-  channel: z.enum(CHANNELS).describe("Canal de contacto elegido"),
-  offer: z.enum(OFFERS).describe("Oferta o acción propuesta al cliente"),
-  send_hour: z.number().int().min(0).max(23).describe("Hora local del día para contactar (0-23)"),
-  tone: z.enum(["cercano", "formal", "urgente_respetuoso"]),
-  message: z.string().describe("Mensaje al cliente en español, breve y respetuoso, sin amenazas"),
-  rationale: z.string().describe("Por qué este canal/oferta/horario para este cliente, citando datos de las herramientas"),
+export type Gestion = {
+  gestion_id: number;
+  cliente_id: string;
+  fecha: string;
+  agente: ActorId;
+  accion: string;
+  canal: string | null;
+  mensaje: string | null;
+  resultado: string | null;
+  motivo_no_pago: string | null;
+  monto_promesa: number | null;
+  fecha_promesa: string | null;
+  estado_promesa: "pendiente" | "cumplida" | "rota" | null;
+  derivado_humano: boolean;
+  justificacion: string | null;
+};
+export type NuevaGestion = Omit<Gestion, "gestion_id" | "fecha"> & { fecha?: string };
+
+export const MOTIVOS = ["retraso_ingresos", "iliquidez", "olvido", "desempleo", "reclamo", "desconoce_deuda", "otro", "desconocido"] as const;
+export type Motivo = (typeof MOTIVOS)[number];
+
+/** Salida estructurada del Gestor en cada turno de la conversación. */
+export const GestorTurnSchema = z.object({
+  mensaje: z.string().describe("Mensaje para el cliente, listo para enviar, en español, breve y respetuoso"),
+  motivo_no_pago: z.enum(MOTIVOS).describe("Motivo de no pago identificado hasta ahora; 'desconocido' si aún no se sabe"),
+  accion: z.enum(["preguntar", "ofrecer", "registrar_promesa", "escalar_humano", "cerrar"]),
+  regla_id: z.number().int().nullable().describe("regla_id de la opción de pago ofrecida (solo reglas opcion_pago); null si no ofrece"),
+  monto_promesa: z.number().nullable().describe("Monto prometido por el cliente (solo con registrar_promesa)"),
+  fecha_promesa: z.string().nullable().describe("Fecha prometida YYYY-MM-DD (solo con registrar_promesa)"),
+  justificacion: z.string().describe("Por qué decidiste esto, citando lo que dijo el cliente y la regla aplicada (1-2 frases)"),
+  resumen_humano: z.string().nullable().describe("Solo con escalar_humano: resumen del caso para la persona que lo tomará"),
+  borrador_humano: z.string().nullable().describe("Solo con escalar_humano: borrador de mensaje sugerido para que el humano lo edite"),
 });
-export type ProposalDraft = z.infer<typeof ProposalDraftSchema>;
+export type GestorTurn = z.infer<typeof GestorTurnSchema>;
 
-export type Proposal = ProposalDraft & {
-  expected_cost: number;
-  expected_loss: number;
-  expected_loss_avoided: number;
-  net_value: number;
+export type Turno = { rol: "gestor" | "cliente" | "humano"; texto: string };
+
+export type Propuesta = { canal: string; fecha: string; hora: string; justificacion: string };
+
+export type EventoAgente = {
+  id: number;
+  de: ActorId;
+  a: ActorId;
+  tipo: "consulta" | "propuesta" | "validacion" | "mensaje" | "respuesta" | "registro" | "escalamiento" | "seguimiento";
+  titulo: string;
+  texto?: string;
+  estado: "ok" | "rechazado" | "info";
+  datos?: unknown;
 };
 
-export type ContactAttempt = {
-  round: number;
-  channel: Channel;
-  offer: Offer;
-  message: string;
-  customer_reply: string;
-  outcome: Outcome;
+export type EventoStream =
+  | { tipo: "evento"; evento: EventoAgente }
+  | { tipo: "fin"; estado: "esperando_humano" | "promesa_registrada" | "cerrado" | "control" | "sin_respuesta" | "error"; detalle?: string };
+
+export type Kpis = {
+  totalClientes: number;
+  conversaciones: number;
+  prioridad: { alta: number; media: number; baja: number };
+  pagoAltoRiesgo: { grupo: "tratamiento" | "control"; n: number; pagan: number }[];
+  liftPp: number | null;
+  promesas: { total: number; cumplidas: number; rotas: number; pendientes: number };
+  motivos: { motivo: string; n: number }[];
+  derivados: { derivados: number; conversaciones: number };
 };
-
-export type TraceStep =
-  | { kind: "tool_call"; name: string; args: unknown }
-  | { kind: "tool_result"; name: string; content: string }
-  | { kind: "note"; content: string };
-
-export type RiskAssessment = {
-  pd: number;
-  band: "alto" | "medio" | "bajo";
-  reasons: { factor: string; impact_pp: number }[];
-};
-
-export type ChannelOption = {
-  channel: Channel;
-  label: string;
-  cost: number;
-  effectiveness: number; // reducción relativa esperada de la pérdida (0-1) tras el ajuste por historial
-  expected_loss_avoided: number;
-  net_value: number;
-  note?: string;
-};
-
-export type ComplianceCheck = { id: string; label: string; status: "ok" | "warn" | "block"; detail: string };
-export type ComplianceResult = { status: "ok" | "warn" | "block"; checks: ComplianceCheck[] };

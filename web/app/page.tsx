@@ -1,59 +1,68 @@
 import Link from "next/link";
-import { clients, expectedLoss, meta, money } from "@/lib/portfolio";
+import { getCtx, repos } from "@/lib/container";
 
-export default function Portfolio() {
-  const high = clients.filter((c) => c.risk_band === "alto");
-  const exposureHigh = high.reduce((s, c) => s + c.exposure_ead, 0);
-  const lossTotal = clients.reduce((s, c) => s + expectedLoss(c), 0);
+export const dynamic = "force-dynamic";
+
+const money = (n: number) => `S/ ${n.toLocaleString("es-PE", { maximumFractionDigits: 0 })}`;
+const CHIP = { alta: "alto", media: "medio", baja: "bajo" } as const;
+
+export default async function Cartera({ searchParams }: { searchParams: Promise<{ grupo?: string; prio?: string }> }) {
+  const { grupo, prio } = await searchParams;
+  await getCtx();
+  const todos = await repos.cartera.list();
+  const filtrados = todos.filter((c) => (!grupo || c.grupo === grupo) && (!prio || c.prioridad === prio));
+  const alta = todos.filter((c) => c.prioridad === "alta");
+
+  const filtro = (label: string, q: Record<string, string>, activo: boolean) => (
+    <Link key={label} href={{ pathname: "/", query: q }} className={`pill ${activo ? "on" : ""}`}>{label}</Link>
+  );
 
   return (
     <main className="wrap">
-      <h1>Cobrador · cobranza temprana</h1>
-      <p className="sub">Cartera demo ordenada por probabilidad de mora (PD). Elige un cliente para que el agente proponga el contacto.</p>
+      <h1>Cobranza temprana · cartera priorizada</h1>
+      <p className="sub">Cartera sintética de {todos.length} clientes. El Analista ordena por probabilidad de no pago; elige un cliente de <b>tratamiento</b> para ver al Analista, Supervisor, Gestor y asesor humano trabajar en vivo.</p>
 
       <section className="kpis">
-        <div className="card kpi"><b>{clients.length}</b><span>clientes en la cartera demo</span></div>
-        <div className="card kpi"><b>{high.length}</b><span>en riesgo alto (PD ≥ 30 %)</span></div>
-        <div className="card kpi"><b>{money(exposureHigh)}</b><span>exposición en riesgo alto</span></div>
-        <div className="card kpi"><b>{money(lossTotal)}</b><span>pérdida esperada (LGD 60 %, supuesto)</span></div>
+        <div className="card kpi"><b>{todos.length}</b><span>clientes en cartera</span></div>
+        <div className="card kpi"><b>{alta.length}</b><span>prioridad alta (prob. ≥ 55 %)</span></div>
+        <div className="card kpi"><b>{money(alta.reduce((s, c) => s + c.saldo_deuda, 0))}</b><span>deuda de prioridad alta</span></div>
+        <div className="card kpi"><b>{todos.filter((c) => c.grupo === "control").length}</b><span>en grupo control (no se contactan)</span></div>
       </section>
+
+      <div className="filtros">
+        {filtro("Todos", {}, !grupo && !prio)}
+        {filtro("Prioridad alta", { prio: "alta" }, prio === "alta")}
+        {filtro("Tratamiento", { grupo: "tratamiento" }, grupo === "tratamiento")}
+        {filtro("Alta + tratamiento", { prio: "alta", grupo: "tratamiento" }, prio === "alta" && grupo === "tratamiento")}
+        {filtro("Control", { grupo: "control" }, grupo === "control")}
+      </div>
 
       <div className="card tablewrap">
         <table>
           <thead>
-            <tr>
-              <th>Cliente</th><th>Riesgo</th><th>PD</th>
-              <th className="num">Exposición</th><th className="num">Pérdida esp.</th>
-              <th className="num">Uso de línea</th><th className="num">Atrasos 30+/60+/90+</th><th />
-            </tr>
+            <tr><th>Cliente</th><th>Producto</th><th>Prob. no pago</th><th>Prioridad</th><th>Causa probable</th><th className="num">Cuota</th><th className="num">Atraso</th><th>Grupo</th><th /></tr>
           </thead>
           <tbody>
-            {clients.slice(0, 60).map((c) => {
-              const util = c.signals_weekly.utilization.at(-1) ?? 0;
-              return (
-                <tr key={c.id}>
-                  <td><b>{c.name}</b> <span style={{ color: "var(--muted)" }}>{c.id}</span></td>
-                  <td><span className={`chip ${c.risk_band}`}>{c.risk_band}</span></td>
-                  <td>
-                    <span className="bar"><i style={{ width: `${Math.min(100, c.pd * 100)}%` }} /></span>
-                    {(c.pd * 100).toFixed(1)} %
-                  </td>
-                  <td className="num">{money(c.exposure_ead)}</td>
-                  <td className="num">{money(expectedLoss(c))}</td>
-                  <td className="num">{(util * 100).toFixed(0)} %</td>
-                  <td className="num">{c.late_30_59} / {c.late_60_89} / {c.late_90_plus}</td>
-                  <td><Link href={`/client/${c.id}`}>Abrir caso →</Link></td>
-                </tr>
-              );
-            })}
+            {filtrados.slice(0, 80).map((c) => (
+              <tr key={c.cliente_id}>
+                <td><b>{c.nombre}</b> <span className="muted">{c.cliente_id}</span></td>
+                <td>{c.producto}</td>
+                <td>
+                  <span className="bar"><i style={{ width: `${(c.prob_no_pago ?? 0) * 100}%` }} /></span>
+                  {c.prob_no_pago !== null ? `${(c.prob_no_pago * 100).toFixed(0)} %` : "—"}
+                </td>
+                <td>{c.prioridad && <span className={`chip ${CHIP[c.prioridad]}`}>{c.prioridad}</span>}</td>
+                <td>{(c.causa_probable ?? "").replace("_", " ")}</td>
+                <td className="num">{money(c.monto_cuota)}</td>
+                <td className="num">{c.dias_atraso} d</td>
+                <td>{c.grupo}</td>
+                <td><Link href={`/client/${c.cliente_id}`}>Abrir caso →</Link></td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-
-      <p className="note">
-        Se muestran los 60 clientes de mayor PD. Real: PD, razones y variables de crédito ({meta.source}; {meta.model}).
-        Sintético: nombres, límite de línea, exposición y series semanales.
-      </p>
+      <p className="note">Se muestran los {Math.min(80, filtrados.length)} primeros de {filtrados.length}. Datos 100 % sintéticos (uso de línea y atrasos anclados a Give Me Some Credit).</p>
     </main>
   );
 }

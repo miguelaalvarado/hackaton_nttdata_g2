@@ -10,6 +10,7 @@
   "dependencies": {
     "@langchain/core": "^1.2.18",
     "@langchain/openrouter": "^0.4.17",
+    "@libsql/client": "^0.18.0",
     "langchain": "^1.5.18",
     "next": "^15.5.0",
     "react": "^19.1.0",
