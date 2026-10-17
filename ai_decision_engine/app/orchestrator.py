@@ -11,7 +11,7 @@ import re
 import uuid
 from datetime import datetime
 
-from . import compliance, interpreter, messages, scheduling, strategy
+from . import compliance, interpreter, llm, messages, scheduling, strategy
 from .db import connect, transaction, utcnow
 from .demo_agent import build_context
 from .repositories import AgentRunRepo, ContactRepo, ConversationRepo, CustomerRepo
@@ -22,6 +22,19 @@ PROPOSER_ID = "nexo-orchestrator"
 DIFFICULTY = re.compile(r"no puedo|dificultad|difícil|dificil|fin de mes|no tengo|atras", re.IGNORECASE)
 
 
+# Registro de componentes (alimenta el mapa visual). 'engine' real se decide en tiempo de ejecución y queda en cada traza.
+COMPONENTS = [
+    ("orchestrator", "0 · Orchestrator", "Coordina el caso y se detiene ante disputa, pago pendiente o exclusión.", "app/orchestrator.py", False),
+    ("risk_agent", "1 · Risk", "Interpreta el score externo con evidencia y bandas de riesgo.", "app/interpreter.py", False),
+    ("strategy_agent", "2 · Strategy", "Elige la estrategia preventiva según la banda de riesgo.", "app/strategy.py", False),
+    ("contact_agent", "3 · Contact", "Canal y momento permitidos (consentimiento, exclusiones, frecuencia, ventana).", "app/scheduling.py", False),
+    ("conversational_agent", "4 · Conversational", "Redacta el borrador empático. ÚNICO componente con adaptador LLM opcional.", "app/messages.py · app/llm.py", True),
+    ("negotiation_agent", "5 · Negotiation", "Opciones condicionadas 'sujetas a evaluación'; sin montos ni compromisos.", "app/orchestrator.py", False),
+    ("compliance_agent", "6 · Compliance", "AI Decision Engine: valida propuesta y deja la decisión pendiente de humano.", "app/compliance.py", False),
+    ("followup_learning", "7 · Follow-up & Learning", "Reevalúa y fija la próxima fecha; estadística simple de respuesta por canal.", "app/scheduling.py", False),
+]
+
+
 class Run:
     """Registro de una corrida de componente en agent_runs (transacción corta e independiente)."""
 
@@ -29,7 +42,9 @@ class Run:
         self.orch_id, self.customer_id, self.case_version = orch_id, customer_id, case_version
         self.steps: list[dict] = []
 
-    def log(self, agent: str, inp: dict, out: dict, decision_id: str | None = None, status: str = "OK") -> dict:
+    def log(self, agent: str, inp: dict, out: dict, decision_id: str | None = None, status: str = "OK",
+            engine: str = "rules") -> dict:
+        out = {**out, "engine": engine}  # honestidad en la traza: 'rules' (determinista) o 'llm:<modelo>'
         started = utcnow()
         with connect() as c, transaction(c):
             AgentRunRepo(c).insert(started, utcnow(), agent_name=agent, customer_id=self.customer_id,
@@ -57,10 +72,24 @@ def contact_agent(conn, customer_id: str, now: datetime) -> dict:
     return plan.public()
 
 
-def conversational_agent(ctx, strat, channel: str, last_reply: str | None) -> dict:
-    """4. Conversational Agent: borrador de mensaje empático (plantillas) con contexto de la última respuesta."""
+def conversational_agent(ctx, strat, channel: str, last_reply: str | None, offers: list[str] | None = None) -> dict:
+    """4. Conversational Agent: plantillas (reglas) o, si hay ANTHROPIC_API_KEY, redacción con LLM. El pie de baja lo pone el código."""
     draft = messages.draft_message(ctx, strat.model_copy(update={"channel": channel}))
-    return {"subject": draft.subject, "body": draft.body, "language": draft.language, "responds_to": last_reply}
+    out = {"subject": draft.subject, "body": draft.body, "language": draft.language, "responds_to": last_reply,
+           "engine": "rules"}
+    if llm.enabled():
+        try:
+            text = llm.draft_body(first_name=ctx.customer.first_name, language=ctx.customer.language,
+                                  amount=f"{ctx.account.currency} {ctx.account.installment_amount:,.2f}",
+                                  due_date=ctx.account.next_due_date.isoformat(), objective=strat.objective,
+                                  offers=offers or [], last_reply=last_reply)
+            if offers and not compliance.HEDGE_PATTERN.search(text):  # garantía en código: no depende del LLM
+                text += " Las opciones de apoyo que te comentamos están sujetas a evaluación."
+            out["body"] = text + messages.FOOTER[ctx.customer.language]
+            out["engine"] = f"llm:{llm.model_name()}"
+        except Exception as exc:  # noqa: BLE001 - cualquier fallo del proveedor => plantillas, con traza del error
+            out["llm_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+    return out
 
 
 def negotiation_agent(strat_offers: list[str], last_reply: str | None) -> dict:
@@ -110,8 +139,8 @@ def propose_case(customer_id: str, now: datetime | None = None) -> dict:
     strat_model = strategy.select_strategy(ctx, interp_model)
     run.log("strategy_agent", {"band": interp_model.band.value}, strategy_agent(ctx, interp_model))
     run.log("contact_agent", {"policy": "scheduling.Policy"}, contact)
-    conv = conversational_agent(ctx, strat_model, contact["channel"], last_reply)
-    run.log("conversational_agent", {"channel": contact["channel"]}, conv)
+    conv = conversational_agent(ctx, strat_model, contact["channel"], last_reply, strat_model.proposed_offers)
+    run.log("conversational_agent", {"channel": contact["channel"]}, conv, engine=conv["engine"])
     nego = negotiation_agent(strat_model.proposed_offers, last_reply)
     run.log("negotiation_agent", {"strategy": strat_model.code.value}, nego)
 

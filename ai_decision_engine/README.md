@@ -248,3 +248,26 @@ pago confirmado (idempotente) → saldo actualizado → decisión obsoleta inval
 
 **Si se integra Next.js**: usar Backend-for-Frontend; claves solo en el servidor (sin `NEXT_PUBLIC_`), adjuntar `X-Integration-Key`
 en rutas servidor, autenticar y autorizar al usuario antes de permitir revisión humana, y no publicar la API sin HTTPS.
+
+## Demo visual local (Streamlit)
+
+```bash
+cd ai_decision_engine
+python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+streamlit run dashboard/streamlit_app.py        # http://localhost:8501 (atado a 127.0.0.1)
+```
+Menú lateral: **streamlit app** (consola completa) · **Demo guiada** (caso completo en 5 clics: evaluar → aprobar → contacto simulado →
+seguimiento → pago; muestra lo que queda en SQLite) · **Mapa de componentes** (diagrama del orquestador y los 7 componentes con sus trazas reales).
+Primera vez: en *Demo guiada* pulsa **➕ Nuevo caso demo** (repetible sin reiniciar la base).
+
+![Mapa de componentes](docs/mapa_componentes.png)
+
+### Qué es IA y qué son reglas (estado real)
+| Componente | Motor hoy | ¿IA generativa? |
+|---|---|---|
+| 0 Orchestrator, 1 Risk, 2 Strategy, 3 Contact, 5 Negotiation, 6 Compliance, 7 Follow-up | **reglas/plantillas deterministas** | **No** |
+| 4 Conversational | reglas (plantillas); **adaptador LLM opcional** `app/llm.py` | Solo si existe `ANTHROPIC_API_KEY` (`pip install anthropic`; modelo `NEXO_LLM_MODEL`) |
+
+Cada traza (`agent_runs.output.engine`) dice `rules` o `llm:<modelo>`; el mapa lo muestra y avisa si ninguna corrida usó IA.
+El LLM solo redacta el cuerpo: el pie de baja y la cobertura "sujeta a evaluación" los añade el código, y el borrador sigue pasando por
+cumplimiento y por revisión humana. **El adaptador LLM está probado con un doble del SDK, no contra la API real** (sin clave en el entorno de desarrollo).

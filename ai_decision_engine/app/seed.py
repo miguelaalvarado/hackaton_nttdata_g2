@@ -37,3 +37,20 @@ def seed_demo(conn: sqlite3.Connection, now: datetime | None = None) -> dict:
         for cid in created:
             scheduling.reevaluate_customer(conn, cid, now, "SEED")
     return {"created": created, "existing": [d[0] for d in DEMO if d[0] not in created]}
+
+
+def create_demo_case(conn: sqlite3.Connection, now: datetime | None = None, days_to_due: int = -3) -> str:
+    """Crea un cliente ficticio NUEVO (id único) para repetir la demo guiada sin reiniciar la base."""
+    import uuid
+    now = now or utcnow()
+    today = now.astimezone(LIMA).date()
+    suffix = uuid.uuid4().hex[:4].upper()
+    cid = f"CLI-D{suffix}"
+    with transaction(conn):
+        CustomerRepo(conn).create(now, cid, "Demo", "es", ["email", "sms", "whatsapp", "phone_call"], None)
+        loan = LoanRepo(conn).create(now, cid, "personal_loan", "PEN", 8000_00, loan_id=f"LN-D{suffix}")
+        for seq in (1, 2, 3):
+            due = today + timedelta(days=days_to_due + 30 * (seq - 1))
+            InstallmentRepo(conn).create(now, loan["loan_id"], cid, seq, due.isoformat(), 650_00, installment_id=f"IN-D{suffix}-{seq}")
+        scheduling.reevaluate_customer(conn, cid, now, "SEED")
+    return cid
