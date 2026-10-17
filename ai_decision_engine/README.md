@@ -214,3 +214,37 @@ timestamps ISO-8601 UTC, claves foráneas activas, cada cambio relevante en una 
 - Los eventos rechazados por reglas de negocio (autorizados pero inválidos) sí quedan auditados en `events`.
 
 Contrato para agentes y frontend: [`docs/INTEGRATION_CONTRACT.md`](docs/INTEGRATION_CONTRACT.md).
+
+## Orquestador y flujo de demostración (10 pasos)
+
+`app/orchestrator.py` coordina los componentes reutilizando los módulos existentes (`interpreter`, `strategy`, `messages`,
+`scheduling`, AI Decision Engine). Hoy son deterministas (sin LLM) tras una interfaz estable; cada uno lee la BD y deja su corrida
+en `agent_runs` (`trigger = orchestrator:<id>`). Un LLM puede sustituirlos sin privilegios nuevos: toda propuesta pasa por
+`evaluate_agent_proposal` y por revisión humana, y nadie salvo `bank_simulator` registra pagos.
+
+| Componente | Implementación |
+|---|---|
+| 0 Orchestrator | `propose_case` (`POST /v1/orchestrator/run`) |
+| 1 Risk | `interpreter.interpret` |
+| 2 Strategy | `strategy.select_strategy` |
+| 3 Contact | `scheduling.plan_next_action` (consentimiento, exclusiones, frecuencia, ventana) |
+| 4 Conversational | `messages.draft_message` + última respuesta del cliente |
+| 5 Negotiation | ofertas condicionadas ("sujetas a evaluación"), sin montos |
+| 6 Compliance | AI Decision Engine (`compliance.review`) vía `evaluate_agent_proposal` |
+| 7 Follow-up & Learning | `followup_agent` (`POST /v1/orchestrator/followup/{id}`) |
+
+Demo local (claves efímeras, no se imprimen):
+```bash
+export NEXO_ENABLE_DEV_SEED=1 NEXO_INTEGRATION_KEYS="$(python3 - <<'PY'
+import json,secrets
+print(json.dumps({secrets.token_urlsafe(24):r for r in ["human","bank_simulator","agent","system","reader","customer_channel"]}))
+PY
+)"
+uvicorn app.main:app --port 8000 &
+python3 -m scripts.demo_flow --base-url http://localhost:8000 --customer CLI-0003 --seed
+```
+Hace los 10 pasos: consulta BD → riesgo → estrategia/contacto → validación → aprobación humana → gestión y próximo seguimiento →
+pago confirmado (idempotente) → saldo actualizado → decisión obsoleta invalidada (409) → cierre de la cuota. Cada paso verifica la BD vía API.
+
+**Si se integra Next.js**: usar Backend-for-Frontend; claves solo en el servidor (sin `NEXT_PUBLIC_`), adjuntar `X-Integration-Key`
+en rutas servidor, autenticar y autorizar al usuario antes de permitir revisión humana, y no publicar la API sin HTTPS.

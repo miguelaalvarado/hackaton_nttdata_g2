@@ -17,8 +17,11 @@ from .schemas import AgentProposal, AgentProposalRequest, DecisionRequest
 AGENT_ID = "demo-strategy-agent"
 
 
-def build_proposal(conn: sqlite3.Connection, customer_id: str, now: datetime) -> AgentProposalRequest:
+def build_context(conn: sqlite3.Connection, customer_id: str, now: datetime) -> tuple[DecisionRequest, dict | None]:
+    """Contexto del caso leído de la BD persistente (la BD manda). Devuelve también la próxima acción vigente."""
     customer = CustomerRepo(conn).get(customer_id)
+    if customer is None:
+        raise ValueError(f"Cliente desconocido: {customer_id}")
     inst = InstallmentRepo(conn).current_open(customer_id)
     if inst is None:
         raise ValueError("El cliente no tiene cuotas abiertas")
@@ -41,6 +44,13 @@ def build_proposal(conn: sqlite3.Connection, customer_id: str, now: datetime) ->
                      "credit_utilization": 0.4, "payment_trend": "worsening" if dpd else "stable"},
         "risk_score": {"value": score, "model_version": "demo-risk-v0", "scored_at": now.astimezone(LIMA).date().isoformat()},
     })
+    return ctx, nxt
+
+
+def build_proposal(conn: sqlite3.Connection, customer_id: str, now: datetime) -> AgentProposalRequest:
+    customer = CustomerRepo(conn).get(customer_id)
+    ctx, nxt = build_context(conn, customer_id, now)
+    consent = ctx.customer.contact_consent
     base = strategy.select_strategy(ctx, interpreter.interpret(ctx))
     channel = nxt["channel"] if nxt and nxt["channel"] in consent else (base.channel.value if base.channel else consent[0])
     draft_req = ctx

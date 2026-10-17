@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from . import scheduling
-from .auth import OPERATE_ROLES, READ_ROLES, ROLES, event_allowed, require_roles
+from .auth import OPERATE_ROLES, PROPOSE_ROLES, READ_ROLES, ROLES, event_allowed, require_roles
 from .db import connect, transaction, utcnow
 from .events import EventIn, EventRejected, process_event
 from .repositories import ActionRepo, AgentRunRepo, CustomerRepo
@@ -138,3 +138,30 @@ def dev_seed():
     from .seed import seed_demo
     with connect() as conn:
         return seed_demo(conn)
+
+
+class RunBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    customer_id: str
+    now: datetime | None = None
+
+
+@router.post("/orchestrator/run", dependencies=[Depends(require_roles(PROPOSE_ROLES))])
+def orchestrator_run(body: RunBody):
+    """Orquestador: consulta BD → riesgo → estrategia → contacto → mensaje → negociación → validación del Decision Engine.
+    Deja una decisión PENDIENTE de aprobación humana; no envía nada."""
+    from .orchestrator import propose_case
+    try:
+        return propose_case(body.customer_id, body.now)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc))
+
+
+@router.post("/orchestrator/followup/{customer_id}", dependencies=[Depends(require_roles(OPERATE_ROLES))])
+def orchestrator_followup(customer_id: str, body: NowBody | None = None):
+    """Agente 7: reevalúa y devuelve la próxima fecha de seguimiento."""
+    from .orchestrator import followup_agent
+    with connect() as conn:
+        if CustomerRepo(conn).get(customer_id) is None:
+            raise HTTPException(404, "Cliente no encontrado")
+    return followup_agent(customer_id, body.now if body else None)

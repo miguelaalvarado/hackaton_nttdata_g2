@@ -189,6 +189,15 @@ if st.button("🤖 Pedir propuesta al agente demo → /v1/agent-proposals/evalua
         st.rerun()
     except ValueError as exc:
         st.error(str(exc))
+if st.button("🧭 Ejecutar orquestador (Risk→Strategy→Contact→Conversational→Negotiation→Compliance)"):
+    from app.orchestrator import propose_case
+    st.session_state["orch"] = propose_case(cid, NOW)
+    st.rerun()
+if "orch" in st.session_state:
+    o = st.session_state.pop("orch")
+    (st.warning if o["halted"] else st.success)(o.get("reason") or f"Decisión {o['decision_id'][:8]} · {o['compliance_status']} · pendiente de aprobación humana")
+    with st.expander("Pasos del orquestador"):
+        st.json(o["steps"])
 for d in S["decisions"][:8]:
     s = d["summary"]
     tag = {"pending": "🟡 pendiente", "approved": "🟢 aprobada", "rejected": "⚪ rechazada"}[d["review_status"]]

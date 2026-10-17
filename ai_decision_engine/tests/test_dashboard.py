@@ -27,6 +27,8 @@ def test_dashboard_buttons_mutate_real_database(isolated_db):
     assert q("select paid_cents, status from installments where installment_id='IN-0002-1'") == [(32000, "PARTIAL")]
     click("Pedir propuesta")
     assert q("select review_status, validity from decisions") == [("pending", "valid")]
+    click("Ejecutar orquestador")
+    assert q("select count(*) from agent_runs where agent_name='risk_agent'") == [(1,)]
     click("Compromiso de pago")
     assert q("select status from promises") == [("OPEN",)]
     assert q("select validity from decisions") == [("stale",)]  # el compromiso invalidó la propuesta previa
