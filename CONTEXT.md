@@ -10,6 +10,9 @@
 > - Reglas de negocio en la tabla `reglas` (valores de ejemplo; las reglas 6-8 no están en el documento). Revisar horarios con la norma real.
 > - Fase 3: adaptadores de Supabase/Postgres para los puertos de `web/lib/core/ports.ts` y deploy en Vercel (SQLite no persiste en Vercel).
 > - Ejecutar: `cd web && npm run dev`; contenedor: ver `web/Dockerfile`. Variables en `web/.env.example`.
+> - **Fiabilidad (rama `feat/phase2-reliability-impact`)**: contacto en estados reales (propuesto → validado → programado → enviado *simulado* → respuesta / sin respuesta / escalado / cerrado),
+>   guardrails determinísticos de negociación (`core/negociacion.ts`), una sola validación de acuerdos (`validarAcuerdo`) también tras el asesor, promesas ≠ pagos (tabla `pagos`:
+>   `simulado` vs `confirmado`), telemetría real de LLM (`llm_calls`), acciones protegidas por `NEXO_ADMIN_TOKEN` y entradas validadas con Zod. Pruebas: `cd web && npm test`.
 
 NTT DATA + Sundai LATAM + NANDA Project (MIT Media Lab). Fuente: `Hack AI Agents (1).docx` (en la raíz del repo).
 
