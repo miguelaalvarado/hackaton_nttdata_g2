@@ -1,5 +1,5 @@
 import type { ClienteSimulator } from "../core/ports";
-import { FAST_MODEL, chatModel } from "./llm";
+import { FAST_MODEL, chatModel, medir } from "./llm";
 
 const ESCENARIO: Record<string, string> = {
   retraso_ingresos: "Tu sueldo llegó tarde este mes; te pagan el día {dia} de cada mes. Si te ofrecen mover la fecha de pago unos días hasta después de que cobres, aceptas y prometes un día concreto.",
@@ -18,14 +18,15 @@ export function clienteLlm(model = FAST_MODEL): ClienteSimulator {
     async responder({ cliente, historial, ultimoMensaje, deHumano, hoy }) {
       const guion = (ESCENARIO[cliente.sim_escenario] ?? ESCENARIO.olvido).replace("{dia}", String(cliente.dia_abono_sueldo));
       const conv = historial.map((t) => `${t.rol === "cliente" ? "TÚ" : t.rol === "humano" ? "ASESOR" : "BANCO"}: ${t.texto}`).join("\n");
-      for (let intento = 0; intento < 3; intento++) {
+      // Si el LLM falla o devuelve vacío, se lanza: el contenedor cae al cliente por reglas (no se disfraza una falla como silencio).
+      for (let intento = 0; intento < 2; intento++) {
         const texto = await generar();
         if (texto) return texto;
       }
-      return "(sin respuesta)";
+      throw new Error("El LLM del cliente simulado devolvió respuestas vacías");
 
       async function generar() {
-      const res = await m.invoke([
+      const { valor: res } = await medir("cliente_simulado", model, cliente.cliente_id, async () => { const r = await m.invoke([
         {
           role: "system",
           content:
@@ -36,7 +37,7 @@ export function clienteLlm(model = FAST_MODEL): ClienteSimulator {
             (deHumano ? " Quien te escribe ahora es una persona (asesor), no un bot." : ""),
         },
         { role: "user", content: `Conversación:\n${conv}\n\nÚltimo mensaje ${deHumano ? "del asesor" : "del banco"}: """${ultimoMensaje}"""\nTu respuesta:` },
-      ]);
+        ]); return { valor: r, raw: r }; });
       return String(res.content ?? "").trim();
       }
     },

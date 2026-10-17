@@ -1,6 +1,6 @@
 import type { GestorAgent } from "../core/ports";
-import { GestorTurnSchema, type ClientePublico, type Regla, type Turno } from "../core/types";
-import { AGENT_MODEL, chatModel } from "./llm";
+import { GestorTurnSchema, type ClientePublico, type GestorResultado, type Regla, type Turno } from "../core/types";
+import { AGENT_MODEL, chatModel, medir } from "./llm";
 
 const SYSTEM = `Eres el GESTOR de cobranza temprana de un banco peruano. Conversas por mensajería con un cliente con riesgo de no pagar,
 descubres POR QUÉ no paga y le ofreces SOLO opciones de la tabla de reglas. Eres cercano, breve (estilo WhatsApp, 2-3 frases) y respetuoso.
@@ -14,16 +14,26 @@ REGLAS DE CONDUCTA
 - Si el cliente rechaza todo y no hay más opciones permitidas: accion="escalar_humano".
 - Si el cliente pide que no lo contacten o la conversación ya terminó: accion="cerrar".
 - Mensaje listo para enviar: NUNCA uses marcadores como [Nombre], no inventes teléfonos ni nombres de asesor, firma como "tu banco". Sin amenazas ni presión. Prohibido: embargo, denuncia, policía, cárcel, familiares, vecinos, demanda judicial.
+- Si el cliente dice que YA PAGÓ: motivo_no_pago="pago_declarado" y accion="escalar_humano". NO lo des por pagado: un asesor lo verificará.
+- Si pide reducir la tasa, un descuento, condonación, refinanciamiento, un plazo mayor al máximo de las reglas o un pago parcial que no es una opción de las reglas: motivo_no_pago="solicitud_fuera_de_politica" y accion="escalar_humano". Aclara que no puedes prometerlo.
+- Si pide que no lo contacten: motivo_no_pago="no_contactar" y accion="cerrar".
 - justificacion: 1-2 frases citando lo que dijo el cliente y la regla aplicada.`;
 
 const regla = (r: Regla) => `  - regla_id=${r.regla_id} | tipo=${r.tipo} | condición: ${r.condicion} | valor: ${r.valor}`;
 
-/** Gestor sobre un LLM (DeepSeek vía OpenRouter + LangChain) con salida estructurada. */
-export function gestorLlm(model = AGENT_MODEL): GestorAgent {
-  const m = chatModel(model, 0.3).withStructuredOutput(GestorTurnSchema);
+export type Estructurado = { invoke(messages: { role: string; content: string }[]): Promise<{ raw?: unknown; parsed?: unknown }> };
+
+/**
+ * Gestor sobre un LLM (DeepSeek vía OpenRouter + LangChain) con salida estructurada validada con Zod.
+ * Sin herramientas: el expediente y las reglas se inyectan en el prompt (no hay tool-calling). Una salida inválida
+ * se reintenta UNA vez; si vuelve a fallar se lanza el error y el contenedor cae a reglas con etiqueta "fallback".
+ * `estructurado` solo se inyecta en pruebas.
+ */
+export function gestorLlm(model = AGENT_MODEL, estructurado?: Estructurado): GestorAgent {
+  const m: Estructurado = estructurado ?? (chatModel(model, 0.3).withStructuredOutput(GestorTurnSchema, { includeRaw: true }) as unknown as Estructurado);
   return {
     name: `llm:${model}`,
-    async turno({ cliente, reglas, historial, hoy, numeroTurno, retroalimentacion, humanoActivo }) {
+    async turno({ cliente, reglas, historial, hoy, numeroTurno, retroalimentacion, humanoActivo }): Promise<GestorResultado> {
       const reglasTxt = reglas.filter((r) => ["opcion_pago", "escalamiento"].includes(r.tipo)).map(regla).join("\n");
       const user = [
         `HOY: ${hoy}`,
@@ -36,7 +46,21 @@ export function gestorLlm(model = AGENT_MODEL): GestorAgent {
           : "",
         retroalimentacion ? `EL SUPERVISOR RECHAZÓ TU MENSAJE ANTERIOR. Corrígelo: ${retroalimentacion}` : "",
       ].filter(Boolean).join("\n\n");
-      return await m.invoke([{ role: "system", content: SYSTEM }, { role: "user", content: user }]);
+      let ultimoError: unknown;
+      for (let intento = 0; intento < 2; intento++) {
+        try {
+          const r = await medir("gestor", model, cliente.cliente_id, async () => {
+            const out = await m.invoke([{ role: "system", content: SYSTEM }, { role: "user", content: user }]);
+            const parsed = GestorTurnSchema.safeParse(out.parsed);
+            if (!parsed.success) throw new Error(`Salida estructurada inválida: ${parsed.error.issues[0]?.message ?? "no cumple el esquema"}`);
+            return { valor: parsed.data, raw: out.raw };
+          });
+          return { ...r.valor, meta: { motor: "llm", modelo: model, latencia_ms: r.latencia_ms, tokens_in: r.tokens_in, tokens_out: r.tokens_out } };
+        } catch (e) {
+          ultimoError = e;
+        }
+      }
+      throw ultimoError instanceof Error ? ultimoError : new Error("El LLM no devolvió una salida válida");
     },
   };
 }

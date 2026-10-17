@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ToneChecker } from "../core/ports";
-import { FAST_MODEL, chatModel } from "./llm";
+import { FAST_MODEL, chatModel, medir } from "./llm";
 
 const PROHIBIDAS = ["embargo", "denuncia", "policía", "cárcel", "familiares", "vecinos", "última advertencia"];
 
@@ -17,16 +17,20 @@ export const tonoHeuristico: ToneChecker = {
 
 /** Revisión de tono con LLM; si el modelo falla, cae al heurístico. */
 export function tonoLlm(model = FAST_MODEL): ToneChecker {
-  const m = chatModel(model).withStructuredOutput(z.object({ probabilidad: z.number().min(0).max(1) }));
+  const m = chatModel(model).withStructuredOutput(z.object({ probabilidad: z.number().min(0).max(1) }), { includeRaw: true });
   return {
     name: `llm:${model}`,
     async respetuoso(mensaje) {
       try {
-        const r = await m.invoke([
-          { role: "system", content: "Evalúas mensajes de cobranza bancaria. Devuelve SOLO la probabilidad (0-1) de que el mensaje sea respetuoso, claro y no presione ni amenace." },
-          { role: "user", content: `Mensaje: """${mensaje}"""` },
-        ]);
-        return r.probabilidad;
+        const r = await medir("tono", model, null, async () => {
+          const out = await m.invoke([
+            { role: "system", content: "Evalúas mensajes de cobranza bancaria. Devuelve SOLO la probabilidad (0-1) de que el mensaje sea respetuoso, claro y no presione ni amenace." },
+            { role: "user", content: `Mensaje: """${mensaje}"""` },
+          ]);
+          const p = z.number().min(0).max(1).parse(out.parsed?.probabilidad);
+          return { valor: p, raw: out.raw };
+        });
+        return r.valor;
       } catch (e) {
         console.warn("[tono] LLM falló, uso heurístico:", e instanceof Error ? e.message : e);
         return tonoHeuristico.respetuoso(mensaje);
