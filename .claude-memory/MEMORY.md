@@ -1,0 +1,1 @@
+- [Next build ENOENT](next-build-enoent-dev-server.md) — cerrar next dev/start antes de build; estado de next.config.mjs
