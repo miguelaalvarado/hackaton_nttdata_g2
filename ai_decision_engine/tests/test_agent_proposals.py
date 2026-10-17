@@ -1,5 +1,5 @@
 """Integración con agentes de IA: el agente propone, el motor valida y explica."""
-from tests.conftest import BASE
+from tests.conftest import BASE, as_role
 import copy
 
 URL = "/v1/agent-proposals/evaluate"
@@ -60,5 +60,5 @@ def test_sensitive_attribute_in_context_rejected(client):
 
 def test_proposal_goes_through_same_human_review(client):
     d = client.post(URL, json=_payload()).json()
-    ok = client.post(f"/v1/decisions/{d['decision_id']}/review", json={"reviewer_id": "h", "action": "approve"})
+    ok = client.post(f"/v1/decisions/{d['decision_id']}/review", json={"reviewer_id": "h", "action": "approve"}, headers=as_role(client, "human"))
     assert ok.status_code == 200 and ok.json()["delivery"]["sent"] is False

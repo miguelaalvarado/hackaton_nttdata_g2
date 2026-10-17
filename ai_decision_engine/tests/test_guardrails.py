@@ -1,3 +1,4 @@
+from tests.conftest import as_role
 import pytest
 
 from app.compliance import review
@@ -32,7 +33,7 @@ def test_no_consented_channel_blocks(client, make_request):
     assert d["compliance"]["status"] == "blocked_needs_rewrite"
     assert d["message"]["channel"] is None
     rid = d["decision_id"]
-    rv = client.post(f"/v1/decisions/{rid}/review", json={"reviewer_id": "h1", "action": "approve"})
+    rv = client.post(f"/v1/decisions/{rid}/review", json={"reviewer_id": "h1", "action": "approve"}, headers=as_role(client, "human"))
     assert rv.status_code == 409
 
 
@@ -65,13 +66,13 @@ def test_inconsistent_score_lowers_confidence(client, make_request):
 def test_human_review_flow_never_sends(client, make_request):
     d = client.post("/v1/decisions", json=make_request()).json()
     rid = d["decision_id"]
-    ok = client.post(f"/v1/decisions/{rid}/review", json={"reviewer_id": "analista-1", "action": "approve"})
+    ok = client.post(f"/v1/decisions/{rid}/review", json={"reviewer_id": "analista-1", "action": "approve"}, headers=as_role(client, "human"))
     assert ok.status_code == 200
     assert ok.json()["delivery"]["sent"] is False
     assert client.get(f"/v1/decisions/{rid}").json()["review_status"] == "approved"
-    again = client.post(f"/v1/decisions/{rid}/review", json={"reviewer_id": "a", "action": "reject"})
+    again = client.post(f"/v1/decisions/{rid}/review", json={"reviewer_id": "a", "action": "reject"}, headers=as_role(client, "human"))
     assert again.status_code == 409
-    assert client.post("/v1/decisions/nope/review", json={"reviewer_id": "a", "action": "approve"}).status_code == 404
+    assert client.post("/v1/decisions/nope/review", json={"reviewer_id": "a", "action": "approve"}, headers=as_role(client, "human")).status_code == 404
 
 
 def test_codebase_has_no_outbound_sending():

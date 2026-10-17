@@ -238,6 +238,20 @@
       "default": null,
       "description": "Momento propuesto de contacto, con offset (ej. 2026-11-03T10:00:00-05:00). Se convierte a America/Lima. Habilita las reglas de día hábil y feriado.",
       "title": "Contact At"
+    },
+    "case_version": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Versión del expediente sobre la que se basó el contexto (opcional, aditivo en 1.2.0). Si falta se usa la vigente. Una decisión con versión obsoleta no puede aprobarse (409).",
+      "title": "Case Version"
     }
   },
   "required": [

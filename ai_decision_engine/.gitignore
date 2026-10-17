@@ -13,3 +13,10 @@ __pycache__/
 *.p12
 secrets/
 credentials*.json
+
+# base de datos local (SQLite)
+data/
+*.db
+*.db-wal
+*.db-shm
+!.env.example

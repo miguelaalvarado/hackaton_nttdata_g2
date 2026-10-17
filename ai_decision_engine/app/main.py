@@ -4,11 +4,14 @@ from __future__ import annotations
 import os
 import uuid
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import OPERATE_ROLES, PROPOSE_ROLES, READ_ROLES, REVIEW_ROLES, require_roles
 from .calendar_pe import to_lima
-from . import compliance, interpreter, messages, strategy
+from . import compliance, decision_service, interpreter, messages, strategy
+from .db import connect
+from .routes_state import router as state_router
 from .schemas import (
     CONTRACT_VERSION, AgentInfo, AgentProposalRequest, DecisionRequest, DecisionResponse, DraftMessage,
     ReviewRequest, ReviewResponse, Strategy,
@@ -19,10 +22,27 @@ app = FastAPI(title="AI Decision Engine - Cobranza temprana", version=CONTRACT_V
 
 # Orígenes del frontend (ej: "http://localhost:5173,http://localhost:3000")
 _origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",") if o.strip()]
-app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["GET", "POST"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["GET", "POST", "PUT"], allow_headers=["Content-Type", "X-Integration-Key"])
 
-# Almacén en memoria (MVP). Se pierde al reiniciar.
-_DECISIONS: dict[str, DecisionResponse] = {}
+# Persistencia: SQLite (ver db.py). Las decisiones y su revisión humana sobreviven a reinicios.
+app.include_router(state_router)
+
+
+def _conflict(exc: decision_service.ReviewConflict) -> HTTPException:
+    return HTTPException(exc.status, exc.detail if exc.detail.get("code") != "CONFLICT" else exc.message)
+
+
+def _save(decision: DecisionResponse, req, agent_name: str, run_input: dict, notes: list[str] | None = None) -> DecisionResponse:
+    with connect() as conn:
+        if notes is None:
+            notes = decision_service.reconciliation_notes(conn, req)
+        else:
+            notes = notes + decision_service.reconciliation_notes(conn, req)
+        decision.alignment_notes = decision.alignment_notes + [n for n in notes if n not in decision.alignment_notes]
+        try:
+            return decision_service.save_decision(conn, decision, req, agent_name, run_input)
+        except decision_service.ReviewConflict as exc:
+            raise _conflict(exc)
 
 
 @app.get("/health")
@@ -36,7 +56,8 @@ def contract():
             "agent_proposal_request": AgentProposalRequest.model_json_schema()}
 
 
-@app.post("/v1/decisions", response_model=DecisionResponse, status_code=201)
+@app.post("/v1/decisions", response_model=DecisionResponse, status_code=201,
+          dependencies=[Depends(require_roles(PROPOSE_ROLES))])
 def create_decision(req: DecisionRequest) -> DecisionResponse:
     interp = interpreter.interpret(req)
     strat = strategy.select_strategy(req, interp)
@@ -46,34 +67,37 @@ def create_decision(req: DecisionRequest) -> DecisionResponse:
         decision_id=str(uuid.uuid4()), request_id=req.request_id, customer_id=req.customer.customer_id,
         interpretation=interp, strategy=strat, message=msg, compliance=report,
     )
-    _DECISIONS[decision.decision_id] = decision
-    return decision
+    return _save(decision, req, "ai_decision_engine", {"request_id": req.request_id, "source": "engine"})
 
 
-@app.get("/v1/decisions/{decision_id}", response_model=DecisionResponse)
+@app.get("/v1/decisions/{decision_id}", response_model=DecisionResponse,
+         dependencies=[Depends(require_roles(READ_ROLES))])
 def get_decision(decision_id: str) -> DecisionResponse:
-    if decision_id not in _DECISIONS:
-        raise HTTPException(404, "Decisión no encontrada")
-    return _DECISIONS[decision_id]
+    with connect() as conn:
+        try:
+            return decision_service.load_decision(conn, decision_id)
+        except decision_service.DecisionNotFound:
+            raise HTTPException(404, "Decisión no encontrada")
 
 
 @app.post("/v1/decisions/{decision_id}/review", response_model=ReviewResponse)
-def review_decision(decision_id: str, body: ReviewRequest) -> ReviewResponse:
-    decision = _DECISIONS.get(decision_id)
-    if decision is None:
-        raise HTTPException(404, "Decisión no encontrada")
-    if body.action == "approve" and decision.compliance.status == "blocked_needs_rewrite":
-        raise HTTPException(409, "No se puede aprobar una decisión bloqueada por cumplimiento")
-    if decision.review_status != "pending":
-        raise HTTPException(409, f"La decisión ya fue {decision.review_status}")
-    decision.review_status = "approved" if body.action == "approve" else "rejected"
+def review_decision(decision_id: str, body: ReviewRequest,
+                    role: str = Depends(require_roles(REVIEW_ROLES))) -> ReviewResponse:
+    with connect() as conn:
+        try:
+            out = decision_service.review_decision(conn, decision_id, body.reviewer_id, body.action, body.comment, actor_role=role)
+        except decision_service.DecisionNotFound:
+            raise HTTPException(404, "Decisión no encontrada")
+        except decision_service.ReviewConflict as exc:
+            raise _conflict(exc)
     return ReviewResponse(
-        decision_id=decision_id, review_status=decision.review_status, reviewer_id=body.reviewer_id,
+        decision_id=decision_id, review_status=out["review_status"], reviewer_id=body.reviewer_id,
         note="Aprobación registrada. Este módulo NO envía: la ejecución queda fuera de su alcance.",
     )
 
 
-@app.post("/v1/agent-proposals/evaluate", response_model=DecisionResponse, status_code=201)
+@app.post("/v1/agent-proposals/evaluate", response_model=DecisionResponse, status_code=201,
+          dependencies=[Depends(require_roles(PROPOSE_ROLES))])
 def evaluate_agent_proposal(body: AgentProposalRequest) -> DecisionResponse:
     """Puerta de validación para agentes de IA externos.
 
@@ -113,5 +137,5 @@ def evaluate_agent_proposal(body: AgentProposalRequest) -> DecisionResponse:
         agent=AgentInfo(agent_id=body.agent_id, proposal_id=body.proposal_id, agent_version=body.agent_version),
         baseline_strategy=baseline.code, alignment_notes=notes,
     )
-    _DECISIONS[decision.decision_id] = decision
-    return decision
+    return _save(decision, req, body.agent_id,
+                 {"proposal_id": body.proposal_id, "agent_version": body.agent_version, "source": "agent_proposal"})

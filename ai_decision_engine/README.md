@@ -157,3 +157,60 @@ ai_decision_engine/
 ## Límites del MVP
 Reglas y plantillas deterministas (auditables); sin LLM, sin persistencia, sin autenticación.
 Ventana de contacto (08:00–20:00) y umbrales de banda son supuestos configurables en código.
+
+
+---
+## Persistencia, eventos y seguimiento (v1.2.0)
+
+**SQLite local** (`data/nexo.db`, variable `NEXO_DB_PATH`) como única fuente de verdad. Importes en **centavos enteros**,
+timestamps ISO-8601 UTC, claves foráneas activas, cada cambio relevante en una **transacción** con traza.
+
+| Módulo | Rol |
+|---|---|
+| `app/db.py` | conexión, esquema, migración mínima (`schema_migrations`) |
+| `app/repositories.py` | capa de repositorios (único lugar con SQL) |
+| `app/events.py` | motor de eventos idempotentes (`POST /v1/events`) |
+| `app/scheduling.py` | Follow-up & Scheduling Engine: próxima acción permitida, `tick`, ejecución **simulada** con revalidación |
+| `app/decision_service.py` | decisiones persistidas + revisión humana con control de `case_version` |
+| `app/seed.py`, `app/demo_agent.py` | datos ficticios y agente demo (sin LLM) |
+| `dashboard/streamlit_app.py` | dashboard local sobre la BD real |
+
+**Reglas clave**
+- Un pago solo existe tras `PAYMENT_POSTED` con `source=bank_simulator`; el mismo `event_id` o `payment_ref` jamás se cuenta dos veces.
+- `PAYMENT_PENDING` no descuenta dinero y bloquea acciones/aprobaciones; `PAYMENT_REVERSED` genera asiento compensatorio y reevalúa.
+- Una promesa **no** es un pago. Opt-out cancela acciones del canal; una disputa bloquea la cobranza hasta `HUMAN_REVIEW`.
+- Todo cambio de saldo/compromiso/estado sube `case_version` e invalida propuestas pendientes. Aprobar una decisión con versión
+  obsoleta → **409 `STALE_CASE_VERSION`** (el contrato `1.2.0` agrega `case_version` opcional a la solicitud y `case_version/validity` a la decisión; es aditivo).
+- Intervalos mínimos, tope semanal y ventana horaria viven en `policy_config` (`GET/PUT /v1/policy`): **supuestos de trabajo auditables, no reglas legales**. Cada acción guarda el snapshot de política aplicado.
+- Nada se envía: ejecutar una acción solo registra un contacto `SIMULATED_SENT`.
+
+**Endpoints nuevos**: `POST /v1/events`, `GET /v1/customers[/{id}]`, `GET /v1/customers/needs-reevaluation`,
+`POST /v1/customers/{id}/reevaluate`, `GET /v1/scheduled-actions?status=`, `POST /v1/scheduled-actions/{id}/execute`,
+`POST /v1/scheduler/tick`, `GET/PUT /v1/policy`, `GET /v1/agent-runs`, `POST /v1/dev/seed`.
+
+**Dashboard**: `streamlit run dashboard/streamlit_app.py` (usa la misma BD; `NEXO_DB_PATH` para cambiarla).
+
+## Seguridad (frontera HTTP)
+
+- **Credenciales**: cabecera `X-Integration-Key`; mapa `clave → rol` solo en el entorno (`NEXO_INTEGRATION_KEYS`). Ver `.env.example`.
+  Generar: `python3 -c "import secrets;print(secrets.token_urlsafe(32))"`. Nunca en código, logs ni GitHub (`.env` está ignorado).
+- **Fail-closed**: sin claves, JSON inválido o clave incorrecta → 401. Clave válida sin permiso → 403. Ambos **sin escribir en la BD**.
+- **Roles**: `human`, `bank_simulator`, `customer_channel`, `agent`, `system`, `reader` (+ `untrusted` = sin credencial: no puede nada).
+- **El rol sale de la credencial, no del cuerpo**. Un `source` declarado que no coincide → 403 `SOURCE_MISMATCH`.
+- **Una sola lógica de revisión**: `decision_service.review_in_tx` (rol humano, cumplimiento, `review_status`, `case_version`, disputa,
+  pago pendiente) la usan `POST /v1/decisions/{id}/review`, `POST /v1/events` (`HUMAN_REVIEW`) y el dashboard.
+- **Lectura protegida**: todo `GET` con datos de expedientes exige rol `human|agent|system|reader`. Públicos: `/health`, `/v1/contract`
+  (solo esquemas), `/docs` y `/openapi.json` (solo esquemas). `POST /v1/dev/seed` está apagado salvo `NEXO_ENABLE_DEV_SEED=1`.
+- **Dashboard local (frontera distinta)**: `dashboard/streamlit_app.py` NO pasa por HTTP ni por `X-Integration-Key`; llama a los servicios
+  en proceso y actúa como consola humana de confianza (puede simular pagos del banco y aprobar). Por eso `.streamlit/config.toml` lo
+  ata a `127.0.0.1`. **No exponerlo a la red ni publicarlo**: quien lo alcance tiene todos los roles. Para producción se reemplaza
+  por un frontend que consuma la API con credenciales por usuario.
+
+### Límites conocidos (MVP)
+- Las claves son secretos compartidos por integración: no identifican a la persona revisora (`reviewer_id` lo declara el cliente) y no hay
+  expiración, rotación automática, firma HMAC, TLS ni límite de tasa. Pónganse detrás de HTTPS y un proxy antes de publicar.
+- `bank_simulator` es un rol, no un banco: quien tenga esa clave puede registrar pagos ficticios.
+- Los intentos denegados solo se registran en el log del proceso (rol y motivo, sin payload ni claves), no en la BD.
+- Los eventos rechazados por reglas de negocio (autorizados pero inválidos) sí quedan auditados en `events`.
+
+Contrato para agentes y frontend: [`docs/INTEGRATION_CONTRACT.md`](docs/INTEGRATION_CONTRACT.md).

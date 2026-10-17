@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .calendar_pe import TIMEZONE_NAME, to_lima
 from .sensitive import find_sensitive_keys
 
-CONTRACT_VERSION = "1.1.0"
+CONTRACT_VERSION = "1.2.0"
 
 
 class Strict(BaseModel):
@@ -100,6 +100,11 @@ class DecisionRequest(Strict):
         default=None,
         description="Momento propuesto de contacto, con offset (ej. 2026-11-03T10:00:00-05:00). "
                     "Se convierte a America/Lima. Habilita las reglas de día hábil y feriado.",
+    )
+    case_version: int | None = Field(
+        default=None, ge=1,
+        description="Versión del expediente sobre la que se basó el contexto (opcional, aditivo en 1.2.0). "
+                    "Si falta se usa la vigente. Una decisión con versión obsoleta no puede aprobarse (409).",
     )
 
     @model_validator(mode="after")
@@ -215,6 +220,10 @@ class DecisionResponse(Strict):
         default=None, description="Estrategia que el motor de reglas habría elegido (solo propuestas de agente)"
     )
     alignment_notes: list[str] = Field(default_factory=list)
+    case_version: int | None = Field(default=None, description="Versión del expediente con la que se generó (1.2.0)")
+    validity: Literal["valid", "stale"] = Field(
+        default="valid", description="'stale' = invalidada por un cambio posterior del expediente (1.2.0)")
+    stale_reason: str | None = None
 
 
 class AgentProposal(Strict):

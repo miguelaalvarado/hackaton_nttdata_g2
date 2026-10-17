@@ -1,4 +1,6 @@
 import copy
+import json
+import secrets
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,9 +8,33 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    """Cada prueba usa su propia base SQLite temporal."""
+    monkeypatch.setenv("NEXO_DB_PATH", str(tmp_path / "test.db"))
+    return tmp_path / "test.db"
+
+
+@pytest.fixture(autouse=True)
+def integration_keys(monkeypatch):
+    """Claves de prueba aleatorias por ejecución (nunca fijas en el repo). Un rol = una clave."""
+    from app.auth import ROLES
+    keys = {role: "test-" + secrets.token_hex(16) for role in sorted(ROLES)}
+    monkeypatch.setenv("NEXO_INTEGRATION_KEYS", json.dumps({k: r for r, k in keys.items()}))
+    monkeypatch.setenv("NEXO_ENABLE_DEV_SEED", "1")
+    return keys
+
+
 @pytest.fixture()
-def client():
-    return TestClient(app)
+def client(integration_keys):
+    """Cliente HTTP con credencial de rol `agent` por defecto (puede proponer y leer, no revisar ni pagar)."""
+    c = TestClient(app, headers={"X-Integration-Key": integration_keys["agent"]})
+    c.keys = integration_keys
+    return c
+
+
+def as_role(client, role):
+    return {"X-Integration-Key": client.keys[role]}
 
 
 BASE = {
