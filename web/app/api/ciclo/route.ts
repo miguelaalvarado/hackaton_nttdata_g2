@@ -1,12 +1,22 @@
+import { exigirAdmin } from "@/lib/auth";
 import { getCtx } from "@/lib/container";
 import { ciclo } from "@/lib/core/orquestador";
-import { ndjson } from "@/lib/stream";
+import { cicloBody, errorInterno, leerJson } from "@/lib/schemas";
+import { conAviso, ndjson } from "@/lib/stream";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
-  const { clienteId, modo } = (await req.json()) as { clienteId: string; modo?: "llm" | "scripted" };
-  const ctx = await getCtx(modo);
-  return ndjson(ciclo(ctx, clienteId));
+  const no = exigirAdmin(req);
+  if (no) return no;
+  const b = await leerJson(req, cicloBody);
+  if (!b.ok) return b.res;
+  try {
+    const ctx = await getCtx(b.data.modo);
+    const { clienteId, fase, silencio, respuestasCliente } = b.data;
+    return ndjson(conAviso(ctx, ciclo(ctx, clienteId, { fase, silencio, respuestasCliente })));
+  } catch (e) {
+    return errorInterno(e, "ciclo");
+  }
 }
