@@ -1,0 +1,124 @@
+{
+  "contract_version": "1.1.0",
+  "decision_id": "9d3f8b79-516c-41c9-86dc-1c0108fff021",
+  "request_id": "req-001",
+  "customer_id": "CLI-0001",
+  "interpretation": {
+    "band": "medium",
+    "score": 50.0,
+    "confidence": "medium",
+    "summary": "Riesgo medio (score 50/100, modelo ext-risk-v3). 0 señal(es) que aumentan el riesgo y 0 que lo reducen. Confianza medium.",
+    "score_note": "El score es externo e ilustrativo: no es una probabilidad validada y los umbrales 35/65 son supuestos de trabajo pendientes de calibración.",
+    "evidence": [
+      {
+        "field": "behavior.missed_payments_last_6m",
+        "value": "1",
+        "reading": "Un pago omitido aislado; señal débil",
+        "direction": "neutral"
+      },
+      {
+        "field": "behavior.payment_trend",
+        "value": "stable",
+        "reading": "Tendencia de pago estable",
+        "direction": "neutral"
+      }
+    ],
+    "inconsistencies": []
+  },
+  "strategy": {
+    "code": "proactive_support",
+    "objective": "Anticipar posibles dificultades y ofrecer opciones de apoyo antes del vencimiento.",
+    "channel": "whatsapp",
+    "contact_hour": 10,
+    "contact_date": null,
+    "contact_timezone": "America/Lima",
+    "proposed_offers": [
+      "Reprogramación de fecha de pago (sujeta a evaluación)",
+      "Pago en canales digitales sin comisión adicional (si aplica)"
+    ],
+    "rationale": "Riesgo medio: hay señales mixtas; conviene ofrecer ayuda de forma proactiva."
+  },
+  "message": {
+    "channel": "whatsapp",
+    "language": "es",
+    "subject": null,
+    "body": "Hola Lucía, tu cuota de PEN 450.00 vence el 2026-11-05. Sabemos que a veces el mes se complica, y queremos ayudarte. Si lo necesitas, puedes consultar opciones como reprogramar tu fecha de pago (sujeto a evaluación). Responde a este mensaje y te orientamos sin compromiso.\n\nEste es un mensaje informativo del banco. Si no deseas recibir estos avisos, responde BAJA."
+  },
+  "compliance": {
+    "status": "pending_human_approval",
+    "human_approval_required": true,
+    "checks": [
+      {
+        "rule_id": "C01",
+        "description": "Existe canal con consentimiento del cliente",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C02",
+        "description": "Hora de contacto dentro de 08:00-20:00",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C09",
+        "description": "Día hábil para llamadas/visitas (no aplica: canal sin restricción de día)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C10",
+        "description": "Feriados para llamadas/visitas (no aplica: canal sin restricción de día)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C03",
+        "description": "Sin lenguaje amenazante o de presión",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C04",
+        "description": "Sin referencias a atributos sensibles",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C05",
+        "description": "Ofertas sin compromisos automáticos (sujetas a evaluación)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C06",
+        "description": "Incluye mecanismo de baja (opt-out)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C07",
+        "description": "Modo borrador: sin envío real",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C08",
+        "description": "Requiere aprobación humana antes de cualquier acción",
+        "passed": true,
+        "detail": ""
+      }
+    ],
+    "violations": []
+  },
+  "delivery": {
+    "sent": false,
+    "mode": "draft_only",
+    "note": "El motor nunca envía mensajes. Un humano debe aprobar y otro sistema ejecutar."
+  },
+  "review_status": "pending",
+  "source": "engine",
+  "agent": null,
+  "baseline_strategy": null,
+  "alignment_notes": []
+}
