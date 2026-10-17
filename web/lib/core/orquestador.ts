@@ -1,3 +1,4 @@
+import { borradorSupervisor } from "./borrador-supervisor";
 import { analizar, proponerSlot } from "./analista";
 import { estadoCaso, TXT_BLOQUEO } from "./estado";
 import { aplicarForzado, guardrailSolicitud } from "./negociacion";
@@ -227,7 +228,7 @@ export async function* ciclo(ctx: Ctx, clienteId: string, opts: OpcionesCiclo = 
     if (!aprobado) {
       await reg(ctx, clienteId, "supervisor", "escalar", { canal, resultado: "derivado_por_rechazos", derivado_humano: true, origen: "supervisor", aprobacion: "pendiente_humano", motor: "reglas",
         justificacion: "El supervisor rechazó el mensaje del Gestor tras varios intentos." });
-      yield s.ev(e("gestor", "humano", "escalamiento", "El Gestor no logra un mensaje válido", "Se deriva a una persona.", "info"));
+      yield s.ev(e("gestor", "humano", "escalamiento", "El Gestor no logra un mensaje válido", "Se deriva a una persona.", "info", { borrador: borradorSupervisor(cliente.nombre) }));
       yield { tipo: "fin", estado: "esperando_humano", detalle: "El supervisor rechazó el mensaje tras varios intentos." };
       return;
     }
@@ -242,7 +243,7 @@ export async function* ciclo(ctx: Ctx, clienteId: string, opts: OpcionesCiclo = 
 
     if (turno.accion === "escalar_humano") {
       yield s.ev(e("gestor", "humano", "escalamiento", "Escala el caso a un humano", turno.resumen_humano ?? turno.justificacion, "info",
-        { resumen: turno.resumen_humano, borrador: turno.borrador_humano, motivo: turno.motivo_no_pago }));
+        { resumen: turno.resumen_humano, borrador: turno.borrador_humano || borradorSupervisor(cliente.nombre), motivo: turno.motivo_no_pago }));
       yield { tipo: "fin", estado: "esperando_humano", detalle: turno.resumen_humano ?? undefined };
       return;
     }
@@ -281,7 +282,7 @@ async function* sinRespuesta(ctx: Ctx, s: Secuencia, cliente: Cliente, reglas: P
     await reg(ctx, cliente.cliente_id, "supervisor", "escalar", { canal, resultado: "derivado_por_silencio", derivado_humano: true, origen: "supervisor", aprobacion: "pendiente_humano", motor: "reglas",
       justificacion: `No se insiste más: ${razon}. Se deriva a una persona.` });
     yield s.ev(e("supervisor", "humano", "escalamiento", "Deriva a una persona por falta de respuesta", `No se insiste más: ${razon}.`, "info",
-      { resumen: `${cliente.nombre} no respondió a ${est.intentosSinRespuesta} contacto(s) por ${canal}. Deuda S/ ${cliente.saldo_deuda}, atraso ${cliente.dias_atraso} d.`, borrador: `Hola ${cliente.nombre.split(" ")[0]}, soy asesor de tu banco. Intentamos escribirte sin éxito y quiero ayudarte con tu cuota. ¿Podemos hablar?`, motivo: "sin_respuesta" }));
+      { resumen: `${cliente.nombre} no respondió a ${est.intentosSinRespuesta} contacto(s) por ${canal}. Deuda S/ ${cliente.saldo_deuda}, atraso ${cliente.dias_atraso} d.`, borrador: borradorSupervisor(cliente.nombre), motivo: "sin_respuesta" }));
     yield { tipo: "fin", estado: "esperando_humano", detalle: `Sin respuesta: ${razon}.` };
     return;
   }
@@ -405,7 +406,7 @@ export async function* turnoHumano(ctx: Ctx, clienteId: string, input: AccionHum
   await reg(ctx, clienteId, "gestor", "escalar", { canal, resultado: "vuelve_al_asesor", derivado_humano: true, justificacion: turno.justificacion, motivo_no_pago: turno.motivo_no_pago === "desconocido" ? null : turno.motivo_no_pago,
     origen: origenDe(turno), aprobacion: "pendiente_humano", motor: motorDe(turno) });
   yield s.ev(e("gestor", "humano", "escalamiento", "Vuelve al asesor", turno.mensaje || turno.justificacion, "info",
-    { resumen: turno.resumen_humano ?? turno.mensaje, borrador: turno.borrador_humano, motivo: turno.motivo_no_pago }));
+    { resumen: turno.resumen_humano ?? turno.mensaje, borrador: turno.borrador_humano || borradorSupervisor(cliente.nombre), motivo: turno.motivo_no_pago }));
   yield { tipo: "fin", estado: "esperando_humano", detalle: turno.justificacion };
 }
 

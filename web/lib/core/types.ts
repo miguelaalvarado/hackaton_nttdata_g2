@@ -98,7 +98,7 @@ export const GestorTurnSchema = z.object({
   fecha_promesa: z.string().nullable().describe("Fecha prometida YYYY-MM-DD (solo con registrar_promesa)"),
   justificacion: z.string().describe("Por qué decidiste esto, citando lo que dijo el cliente y la regla aplicada (1-2 frases)"),
   resumen_humano: z.string().nullable().describe("Solo con escalar_humano: resumen del caso para la persona que lo tomará"),
-  borrador_humano: z.string().nullable().describe("Solo con escalar_humano: borrador de mensaje sugerido para que el humano lo edite"),
+  borrador_humano: z.string().nullable().describe("Solo con escalar_humano: mensaje del Supervisor dirigido directamente al cliente por su nombre, en primera persona como Supervisor de su banco; editable por el asesor humano. No son instrucciones para el asesor."),
 });
 export type GestorTurn = z.infer<typeof GestorTurnSchema>;
 export type GestorResultado = GestorTurn & { meta?: TurnoMeta };

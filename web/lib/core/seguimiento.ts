@@ -1,3 +1,4 @@
+import { borradorSupervisor } from "./borrador-supervisor";
 import { ciclo, turnoHumano, type Ctx } from "./orquestador";
 import type { ActorId, Cliente, EventoStream } from "./types";
 
@@ -109,7 +110,7 @@ export async function procesarLote(ctx: Ctx, n: number) {
     res.procesados++;
     if (fin?.estado === "esperando_humano") {
       res.derivados++;
-      for await (const ev of turnoHumano(ctx, c.cliente_id, { accion: "enviar", mensaje: borrador ?? "Hola, soy asesor de tu banco. Quiero ayudarte a encontrar un plan de pagos que se ajuste a tu situación." })) {
+      for await (const ev of turnoHumano(ctx, c.cliente_id, { accion: "enviar", mensaje: borrador || borradorSupervisor(c.nombre) })) {
         if (ev.tipo === "fin") fin = ev;
       }
     }

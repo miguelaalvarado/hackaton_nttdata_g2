@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import TokenAdmin from "@/components/TokenAdmin";
 import { adminPost, errorDe } from "@/lib/client";
 
 export default function AdminPanel() {
@@ -29,7 +28,6 @@ export default function AdminPanel() {
 
   return (
     <>
-      <TokenAdmin />
       <div className="card" style={{ margin: "0 0 16px" }}>
         <h2>Acciones de demo</h2>
         <p className="muted">El lote usa agentes por reglas (sin LLM) para ser rápido y sin costo; para ver al LLM trabajar abre un caso individual. El cierre de mes es una <b>simulación</b>: no concilia pagos reales.</p>

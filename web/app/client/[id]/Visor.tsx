@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MotorBadge } from "@/components/Motor";
-import TokenAdmin from "@/components/TokenAdmin";
 import { adminPost, errorDe } from "@/lib/client";
+import { borradorSupervisor } from "@/lib/core/borrador-supervisor";
 import type { EstadoCaso } from "@/lib/core/estado";
 import type { ActorId, EventoAgente, EventoStream, Gestion, Pago, Turno, TurnoMeta } from "@/lib/core/types";
 
@@ -99,7 +99,7 @@ export default function Visor({ clienteId, resumen, gestionesIniciales, conversa
   const [activo, setActivo] = useState<{ de?: ActorId; a?: ActorId }>({});
   const [paquete, setPaquete] = useState<{ key: number; de: ActorId; a: ActorId; go: boolean; estado: EventoAgente["estado"]; titulo: string } | null>(null);
   const [enVuelo, setEnVuelo] = useState<EventoAgente | null>(null);
-  const [borrador, setBorrador] = useState("");
+  const [borrador, setBorrador] = useState(() => borradorSupervisor(resumen.nombre));
   const [resumenGestor, setResumenGestor] = useState("");
   const [seleccion, setSeleccion] = useState<EventoAgente | null>(null);
   const [error, setError] = useState("");
@@ -151,7 +151,7 @@ export default function Visor({ clienteId, resumen, gestionesIniciales, conversa
         setPaquete((p) => (p ? { ...p, go: true } : p));
         if (ev.tipo === "escalamiento") {
           const d = ev.datos as { resumen?: string; borrador?: string } | undefined;
-          if (d?.borrador) setBorrador(d.borrador);
+          setBorrador(d?.borrador || borradorSupervisor(resumen.nombre));
           if (d?.resumen) setResumenGestor(d.resumen);
         }
         await sleep(RITMO_MS);
@@ -160,13 +160,16 @@ export default function Visor({ clienteId, resumen, gestionesIniciales, conversa
     } finally {
       reproduciendo.current = false;
     }
-  }, [refrescar]);
+  }, [refrescar, resumen.nombre]);
 
   const lanzar = useCallback(async (url: string, body: Record<string, unknown>, limpiar: boolean) => {
     setError("");
     setEstado("corriendo");
     setFin(null);
-    if (limpiar) setLog([]);
+    if (limpiar) {
+      setLog([]);
+      setBorrador(borradorSupervisor(resumen.nombre));
+    }
     streamTerminado.current = false;
     void reproducir();
     try {
@@ -180,7 +183,7 @@ export default function Visor({ clienteId, resumen, gestionesIniciales, conversa
       streamTerminado.current = true;
       void reproducir();
     }
-  }, [clienteId, modo, reproducir]);
+  }, [clienteId, modo, reproducir, resumen.nombre]);
 
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" }); }, [log.length]);
 
@@ -212,7 +215,6 @@ export default function Visor({ clienteId, resumen, gestionesIniciales, conversa
 
   return (
     <div>
-      <TokenAdmin />
 
       {modo === "llm" && !llmDisponible && (
         <div className="aviso">⚠️ El modo <b>LLM (DeepSeek)</b> no está disponible en este servidor (falta <code>OPENROUTER_API_KEY</code>). Si lo eliges se ejecutarán <b>reglas</b> y así se etiquetará: no se simula una llamada al LLM.</div>
@@ -405,7 +407,7 @@ function HumanoPanel({ resumen, borrador, caso, datos, opciones, gestiones, conv
           </div>
         </div>
       )}
-      <label className="muted" htmlFor="h">Mensaje para el cliente (editable; el Supervisor lo valida antes de enviarlo)</label>
+      <label className="muted" htmlFor="h">Mensaje del Supervisor para {datos.nombre} (editable; sujeto a validación antes de enviarlo)</label>
       <textarea id="h" rows={4} value={texto} onChange={(e) => setTexto(e.target.value)} style={{ width: "100%", boxSizing: "border-box" }} />
       <label className="muted"><input type="checkbox" checked={silencio} onChange={(e) => setSilencio(e.target.checked)} /> Simular que el cliente no responde al asesor</label>
       <div className="row">

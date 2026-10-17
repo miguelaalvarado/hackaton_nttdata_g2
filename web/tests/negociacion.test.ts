@@ -40,6 +40,20 @@ describe("interpretación de la solicitud", () => {
 });
 
 describe("escenarios de negociación (A-G) con estado persistente", () => {
+  it.each([
+    "Necesito 30 días para completar el pago",
+    "Me quedé sin trabajo",
+    "Prefiero revisar mi situación con una persona",
+  ])("el borrador de derivación habla como Supervisor al cliente: %s", async (respuesta) => {
+    const { r } = await conversar(respuesta, { nombre: "Miguel Soto", dias_atraso: 45 });
+    expect(r.fin.estado).toBe("esperando_humano");
+    const derivacion = r.eventos.find((e) => e.tipo === "escalamiento" && (e.datos as { borrador?: string })?.borrador);
+    const borrador = (derivacion?.datos as { borrador: string })?.borrador;
+    expect(borrador).toMatch(/^Hola Miguel, soy el Supervisor de tu banco\./);
+    expect(borrador).toContain("tu caso");
+    expect(borrador).not.toMatch(/soy asesor|soy tu asesor/i);
+  });
+
   it("A · retraso salarial: identifica el motivo, ofrece SOLO la regla autorizada y la promesa respeta el máximo de 7 días", async () => {
     const { r, gs } = await conversar("No me pagaron este mes. Me depositan la próxima semana.", { sim_escenario: "retraso_ingresos", sueldo_llego_mes: false });
     const oferta = gs.find((g) => g.agente === "gestor" && g.motivo_no_pago === "retraso_ingresos" && g.mensaje?.includes("hasta 7 días"));

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { exigirAdmin } from "@/lib/auth";
 import { getCtx } from "@/lib/container";
 import { confirmarPago } from "@/lib/core/pagos";
 import { errorInterno, leerJson, pagoBody } from "@/lib/schemas";
@@ -12,8 +11,6 @@ export const dynamic = "force-dynamic";
  * Idempotente por `referencia`; un pago duplicado devuelve 200 con estado "duplicado" y NO vuelve a descontar.
  */
 export async function POST(req: Request) {
-  const no = exigirAdmin(req);
-  if (no) return no;
   const b = await leerJson(req, pagoBody);
   if (!b.ok) return b.res;
   try {

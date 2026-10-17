@@ -13,6 +13,15 @@ const turnoOk = { mensaje: "Hola Ana, ¿qué pasó con tu cuota?", motivo_no_pag
 const entrada = async () => ({ cliente: await crearCliente(), reglas: await (await ctxTest()).reglasRepo.todas(), historial: [], hoy: "2026-10-14", numeroTurno: 1 });
 
 describe("Gestor LLM: salida estructurada y telemetría REAL (modelo simulado, sin red)", () => {
+  it("instruye al modelo a redactar el borrador del Supervisor para el cliente", async () => {
+    const m: Estructurado = { invoke: async (messages) => {
+      expect(messages[0].content).toContain("el remitente es el SUPERVISOR y el destinatario es el CLIENTE");
+      expect(messages[0].content).toContain('soy el Supervisor de tu banco');
+      return { parsed: turnoOk, raw: {} };
+    } };
+    await gestorLlm("deepseek/test", m).turno(await entrada());
+  });
+
   it("valida con Zod, etiqueta motor=llm y toma los tokens que informa el proveedor", async () => {
     const m: Estructurado = { invoke: async () => ({ parsed: turnoOk, raw: { usage_metadata: { input_tokens: 1200, output_tokens: 80 } } }) };
     const t = await gestorLlm("deepseek/test", m).turno(await entrada());

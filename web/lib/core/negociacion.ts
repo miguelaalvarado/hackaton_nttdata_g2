@@ -1,3 +1,4 @@
+import { borradorSupervisor } from "./borrador-supervisor";
 import { maxDiasAutorizados, reglasDe } from "./reglas";
 import type { ClientePublico, GestorResultado, Motivo, Regla, TurnoMeta } from "./types";
 
@@ -72,11 +73,10 @@ const money = (n: number) => `S/ ${n.toLocaleString("es-PE", { maximumFractionDi
 export function guardrailSolicitud(texto: string, c: ClientePublico, reglas: Regla[]): Forzado | null {
   if (!texto.trim()) return null;
   const s = interpretarSolicitud(texto);
-  const primer = c.nombre.split(" ")[0];
   const resumenBase = `Cliente ${c.nombre} (${c.producto}, deuda ${money(c.saldo_deuda)}, cuota ${money(c.monto_cuota)}, atraso ${c.dias_atraso} d). Dijo: "${texto.slice(0, 280)}"`;
   const caso = (f: Omit<Forzado, "resumen" | "borrador"> & { borrador?: string }): Forzado => ({
     ...f, resumen: `${resumenBase} → ${f.razon}`,
-    borrador: f.borrador ?? `Hola ${primer}, soy asesor de tu banco. Vi tu solicitud y quiero revisarla contigo. Te cuento qué opciones sí están autorizadas y evaluamos lo demás.`,
+    borrador: f.borrador ?? borradorSupervisor(c.nombre),
   });
 
   if (s.noContactar) return caso({ accion: "cerrar", motivo: "no_contactar", efecto: "opt_out", razon: "El cliente pidió no ser contactado.",

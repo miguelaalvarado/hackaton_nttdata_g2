@@ -1,4 +1,3 @@
-import { exigirAdmin } from "@/lib/auth";
 import { getCtx } from "@/lib/container";
 import { ciclo } from "@/lib/core/orquestador";
 import { cicloBody, errorInterno, leerJson } from "@/lib/schemas";
@@ -8,8 +7,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
-  const no = exigirAdmin(req);
-  if (no) return no;
   const b = await leerJson(req, cicloBody);
   if (!b.ok) return b.res;
   try {
