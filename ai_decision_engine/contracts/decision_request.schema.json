@@ -1,0 +1,266 @@
+{
+  "$defs": {
+    "Account": {
+      "additionalProperties": false,
+      "properties": {
+        "product": {
+          "enum": [
+            "credit_card",
+            "personal_loan",
+            "mortgage",
+            "auto_loan"
+          ],
+          "title": "Product",
+          "type": "string"
+        },
+        "currency": {
+          "default": "PEN",
+          "enum": [
+            "PEN",
+            "USD"
+          ],
+          "title": "Currency",
+          "type": "string"
+        },
+        "installment_amount": {
+          "exclusiveMinimum": 0,
+          "title": "Installment Amount",
+          "type": "number"
+        },
+        "next_due_date": {
+          "format": "date",
+          "title": "Next Due Date",
+          "type": "string"
+        },
+        "days_past_due": {
+          "description": "0 = al día (cobranza preventiva)",
+          "maximum": 365,
+          "minimum": 0,
+          "title": "Days Past Due",
+          "type": "integer"
+        },
+        "outstanding_balance": {
+          "minimum": 0,
+          "title": "Outstanding Balance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "product",
+        "installment_amount",
+        "next_due_date",
+        "days_past_due",
+        "outstanding_balance"
+      ],
+      "title": "Account",
+      "type": "object"
+    },
+    "Behavior": {
+      "additionalProperties": false,
+      "properties": {
+        "missed_payments_last_6m": {
+          "maximum": 6,
+          "minimum": 0,
+          "title": "Missed Payments Last 6M",
+          "type": "integer"
+        },
+        "on_time_payment_ratio_6m": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "On Time Payment Ratio 6M",
+          "type": "number"
+        },
+        "credit_utilization": {
+          "maximum": 1.5,
+          "minimum": 0,
+          "title": "Credit Utilization",
+          "type": "number"
+        },
+        "payment_trend": {
+          "$ref": "#/$defs/PaymentTrend"
+        }
+      },
+      "required": [
+        "missed_payments_last_6m",
+        "on_time_payment_ratio_6m",
+        "credit_utilization",
+        "payment_trend"
+      ],
+      "title": "Behavior",
+      "type": "object"
+    },
+    "Channel": {
+      "enum": [
+        "sms",
+        "email",
+        "whatsapp",
+        "push",
+        "phone_call",
+        "in_person_visit"
+      ],
+      "title": "Channel",
+      "type": "string"
+    },
+    "Customer": {
+      "additionalProperties": false,
+      "properties": {
+        "customer_id": {
+          "description": "ID seudónimo, no PII real",
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Customer Id",
+          "type": "string"
+        },
+        "first_name": {
+          "description": "Solo para personalizar el saludo",
+          "maxLength": 60,
+          "minLength": 1,
+          "title": "First Name",
+          "type": "string"
+        },
+        "language": {
+          "default": "es",
+          "enum": [
+            "es",
+            "en"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "contact_consent": {
+          "description": "Canales para los que el cliente dio consentimiento",
+          "items": {
+            "$ref": "#/$defs/Channel"
+          },
+          "minItems": 0,
+          "title": "Contact Consent",
+          "type": "array"
+        },
+        "preferred_channel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Channel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "customer_id",
+        "first_name",
+        "contact_consent"
+      ],
+      "title": "Customer",
+      "type": "object"
+    },
+    "ExternalRiskScore": {
+      "additionalProperties": false,
+      "description": "Score calculado FUERA de este módulo. Aquí solo se interpreta.",
+      "properties": {
+        "value": {
+          "description": "0-100; mayor = mayor riesgo relativo. NO es una probabilidad calibrada/validada",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Value",
+          "type": "number"
+        },
+        "model_version": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Model Version",
+          "type": "string"
+        },
+        "scored_at": {
+          "format": "date",
+          "title": "Scored At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "model_version",
+        "scored_at"
+      ],
+      "title": "ExternalRiskScore",
+      "type": "object"
+    },
+    "PaymentTrend": {
+      "enum": [
+        "improving",
+        "stable",
+        "worsening"
+      ],
+      "title": "PaymentTrend",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "customer": {
+      "$ref": "#/$defs/Customer"
+    },
+    "account": {
+      "$ref": "#/$defs/Account"
+    },
+    "behavior": {
+      "$ref": "#/$defs/Behavior"
+    },
+    "risk_score": {
+      "$ref": "#/$defs/ExternalRiskScore"
+    },
+    "local_hour": {
+      "default": 10,
+      "description": "Hora (America/Lima) propuesta para el contacto. Se ignora si viene contact_at.",
+      "maximum": 23,
+      "minimum": 0,
+      "title": "Local Hour",
+      "type": "integer"
+    },
+    "contact_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Momento propuesto de contacto, con offset (ej. 2026-11-03T10:00:00-05:00). Se convierte a America/Lima. Habilita las reglas de día hábil y feriado.",
+      "title": "Contact At"
+    },
+    "case_version": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Versión del expediente sobre la que se basó el contexto (opcional, aditivo en 1.2.0). Si falta se usa la vigente. Una decisión con versión obsoleta no puede aprobarse (409).",
+      "title": "Case Version"
+    }
+  },
+  "required": [
+    "request_id",
+    "customer",
+    "account",
+    "behavior",
+    "risk_score"
+  ],
+  "title": "DecisionRequest",
+  "type": "object"
+}

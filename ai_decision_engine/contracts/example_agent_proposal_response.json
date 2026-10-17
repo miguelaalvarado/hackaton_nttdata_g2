@@ -1,0 +1,146 @@
+{
+  "contract_version": "1.2.0",
+  "decision_id": "c462c706-8bf3-49af-bbb8-4f9e77d81671",
+  "request_id": "req-001",
+  "customer_id": "CLI-0001",
+  "interpretation": {
+    "band": "low",
+    "score": 12.0,
+    "confidence": "high",
+    "summary": "Riesgo bajo (score 12/100, modelo ext-risk-v3). 0 señal(es) que aumentan el riesgo y 3 que lo reducen. Confianza high.",
+    "score_note": "El score es externo e ilustrativo: no es una probabilidad validada y los umbrales 35/65 son supuestos de trabajo pendientes de calibración.",
+    "evidence": [
+      {
+        "field": "behavior.missed_payments_last_6m",
+        "value": "0",
+        "reading": "Sin pagos omitidos en 6 meses",
+        "direction": "decreases_risk"
+      },
+      {
+        "field": "behavior.on_time_payment_ratio_6m",
+        "value": "1.0",
+        "reading": "Alta puntualidad histórica",
+        "direction": "decreases_risk"
+      },
+      {
+        "field": "behavior.credit_utilization",
+        "value": "0.25",
+        "reading": "Uso de línea holgado",
+        "direction": "decreases_risk"
+      },
+      {
+        "field": "behavior.payment_trend",
+        "value": "stable",
+        "reading": "Tendencia de pago estable",
+        "direction": "neutral"
+      }
+    ],
+    "inconsistencies": []
+  },
+  "strategy": {
+    "code": "friendly_reminder",
+    "objective": "Propuesta del agente de IA",
+    "channel": "whatsapp",
+    "contact_hour": 10,
+    "contact_date": "2026-11-03",
+    "contact_timezone": "America/Lima",
+    "proposed_offers": [],
+    "rationale": "Cliente puntual; recordatorio ligero."
+  },
+  "message": {
+    "channel": "whatsapp",
+    "language": "es",
+    "subject": null,
+    "body": "Hola Lucía, te recordamos que tu cuota de PEN 450.00 vence el 2026-11-05. Gracias por mantener tus pagos al día.\n\nSi no deseas recibir estos avisos, responde BAJA."
+  },
+  "compliance": {
+    "status": "pending_human_approval",
+    "human_approval_required": true,
+    "checks": [
+      {
+        "rule_id": "C01",
+        "description": "Existe canal con consentimiento del cliente",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C02",
+        "description": "Hora de contacto dentro de 08:00-20:00",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C09",
+        "description": "Día hábil para llamadas/visitas (no aplica: canal sin restricción de día)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C10",
+        "description": "Feriados para llamadas/visitas (no aplica: canal sin restricción de día)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C03",
+        "description": "Sin lenguaje amenazante o de presión",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C04",
+        "description": "Sin referencias a atributos sensibles",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C05",
+        "description": "Ofertas sin compromisos automáticos (sujetas a evaluación)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C06",
+        "description": "Incluye mecanismo de baja (opt-out)",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C11",
+        "description": "Racional/ofertas del agente sin presión, promesas ni atributos sensibles",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C07",
+        "description": "Modo borrador: sin envío real",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "rule_id": "C08",
+        "description": "Requiere aprobación humana antes de cualquier acción",
+        "passed": true,
+        "detail": ""
+      }
+    ],
+    "violations": []
+  },
+  "delivery": {
+    "sent": false,
+    "mode": "draft_only",
+    "note": "El motor nunca envía mensajes. Un humano debe aprobar y otro sistema ejecutar."
+  },
+  "review_status": "pending",
+  "source": "agent_proposal",
+  "agent": {
+    "agent_id": "agente-cobranza-demo",
+    "proposal_id": "prop-001",
+    "agent_version": "0.1"
+  },
+  "baseline_strategy": "friendly_reminder",
+  "alignment_notes": [],
+  "case_version": 1,
+  "validity": "valid",
+  "stale_reason": null
+}

@@ -1,0 +1,12 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pytest>=8
+httpx>=0.27
+tzdata
+streamlit>=1.40
+pandas
+# opcional (IA generativa del Conversational Agent; solo se usa si existe ANTHROPIC_API_KEY):
+# anthropic>=0.40
+# opcional (IA real con OpenAI Responses API; solo se usa con LLM_PROVIDER=openai):
+# openai>=1.66

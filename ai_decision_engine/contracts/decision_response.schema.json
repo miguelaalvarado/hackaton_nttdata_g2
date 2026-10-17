@@ -1,0 +1,496 @@
+{
+  "$defs": {
+    "AgentInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "proposal_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Proposal Id",
+          "type": "string"
+        },
+        "agent_version": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Version"
+        }
+      },
+      "required": [
+        "agent_id",
+        "proposal_id"
+      ],
+      "title": "AgentInfo",
+      "type": "object"
+    },
+    "Channel": {
+      "enum": [
+        "sms",
+        "email",
+        "whatsapp",
+        "push",
+        "phone_call",
+        "in_person_visit"
+      ],
+      "title": "Channel",
+      "type": "string"
+    },
+    "ComplianceCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "description",
+        "passed"
+      ],
+      "title": "ComplianceCheck",
+      "type": "object"
+    },
+    "ComplianceReport": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "pending_human_approval",
+            "blocked_needs_rewrite"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "human_approval_required": {
+          "const": true,
+          "default": true,
+          "title": "Human Approval Required",
+          "type": "boolean"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/ComplianceCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Violations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "checks",
+        "violations"
+      ],
+      "title": "ComplianceReport",
+      "type": "object"
+    },
+    "DeliveryInfo": {
+      "additionalProperties": false,
+      "description": "Garantía de no-envío: este módulo solo genera borradores.",
+      "properties": {
+        "sent": {
+          "const": false,
+          "default": false,
+          "title": "Sent",
+          "type": "boolean"
+        },
+        "mode": {
+          "const": "draft_only",
+          "default": "draft_only",
+          "title": "Mode",
+          "type": "string"
+        },
+        "note": {
+          "default": "El motor nunca envía mensajes. Un humano debe aprobar y otro sistema ejecutar.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "DeliveryInfo",
+      "type": "object"
+    },
+    "DraftMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Channel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "language": {
+          "enum": [
+            "es",
+            "en"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "language",
+        "body"
+      ],
+      "title": "DraftMessage",
+      "type": "object"
+    },
+    "EvidenceItem": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "reading": {
+          "description": "Qué significa esta evidencia para el riesgo",
+          "title": "Reading",
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "increases_risk",
+            "decreases_risk",
+            "neutral"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "value",
+        "reading",
+        "direction"
+      ],
+      "title": "EvidenceItem",
+      "type": "object"
+    },
+    "RiskBand": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "RiskBand",
+      "type": "string"
+    },
+    "RiskInterpretation": {
+      "additionalProperties": false,
+      "properties": {
+        "band": {
+          "$ref": "#/$defs/RiskBand"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "score_note": {
+          "default": "El score es externo e ilustrativo: no es una probabilidad validada y los umbrales 35/65 son supuestos de trabajo pendientes de calibración.",
+          "title": "Score Note",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceItem"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "inconsistencies": {
+          "description": "Señales que contradicen el score externo",
+          "items": {
+            "type": "string"
+          },
+          "title": "Inconsistencies",
+          "type": "array"
+        }
+      },
+      "required": [
+        "band",
+        "score",
+        "confidence",
+        "summary",
+        "evidence"
+      ],
+      "title": "RiskInterpretation",
+      "type": "object"
+    },
+    "Strategy": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/StrategyCode"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "string"
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Channel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contact_hour": {
+          "title": "Contact Hour",
+          "type": "integer"
+        },
+        "contact_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fecha local (America/Lima), si se conoce",
+          "title": "Contact Date"
+        },
+        "contact_timezone": {
+          "default": "America/Lima",
+          "title": "Contact Timezone",
+          "type": "string"
+        },
+        "proposed_offers": {
+          "description": "Propuestas SUJETAS a evaluación; nunca compromisos automáticos",
+          "items": {
+            "type": "string"
+          },
+          "title": "Proposed Offers",
+          "type": "array"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "objective",
+        "channel",
+        "contact_hour",
+        "proposed_offers",
+        "rationale"
+      ],
+      "title": "Strategy",
+      "type": "object"
+    },
+    "StrategyCode": {
+      "enum": [
+        "friendly_reminder",
+        "proactive_support",
+        "advisor_outreach"
+      ],
+      "title": "StrategyCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "default": "1.2.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "customer_id": {
+      "title": "Customer Id",
+      "type": "string"
+    },
+    "interpretation": {
+      "$ref": "#/$defs/RiskInterpretation"
+    },
+    "strategy": {
+      "$ref": "#/$defs/Strategy"
+    },
+    "message": {
+      "$ref": "#/$defs/DraftMessage"
+    },
+    "compliance": {
+      "$ref": "#/$defs/ComplianceReport"
+    },
+    "delivery": {
+      "$ref": "#/$defs/DeliveryInfo"
+    },
+    "review_status": {
+      "default": "pending",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "title": "Review Status",
+      "type": "string"
+    },
+    "source": {
+      "default": "engine",
+      "enum": [
+        "engine",
+        "agent_proposal"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "agent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "baseline_strategy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StrategyCode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Estrategia que el motor de reglas habría elegido (solo propuestas de agente)"
+    },
+    "alignment_notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Alignment Notes",
+      "type": "array"
+    },
+    "case_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Versión del expediente con la que se generó (1.2.0)",
+      "title": "Case Version"
+    },
+    "validity": {
+      "default": "valid",
+      "description": "'stale' = invalidada por un cambio posterior del expediente (1.2.0)",
+      "enum": [
+        "valid",
+        "stale"
+      ],
+      "title": "Validity",
+      "type": "string"
+    },
+    "stale_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stale Reason"
+    }
+  },
+  "required": [
+    "decision_id",
+    "request_id",
+    "customer_id",
+    "interpretation",
+    "strategy",
+    "message",
+    "compliance"
+  ],
+  "title": "DecisionResponse",
+  "type": "object"
+}
