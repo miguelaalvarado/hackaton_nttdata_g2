@@ -79,7 +79,7 @@ export function getDb(): Promise<Libsql> {
   return (g.__dbReady ??= (async () => {
     const url = dbUrl();
     if (url.startsWith("file:")) mkdirSync(dirname(url.slice(5)), { recursive: true });
-    const db = createClient({ url });
+    const db = createClient({ url, authToken: process.env.DB_AUTH_TOKEN });
     g.__db = db;
     for (const ddl of DDL) await db.execute(ddl);
     const cols = new Set((await db.execute("PRAGMA table_info(gestiones)")).rows.map((r) => String(r.name)));
