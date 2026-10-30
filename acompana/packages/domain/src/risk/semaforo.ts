@@ -87,7 +87,7 @@ export function computeRisk(input: RiskInput, model: LogisticModel, thresholds: 
     .filter((c) => !(c.feature === 'mood' && input.signals.mood === null))
     .filter((c) => !(c.feature === 'avgPartial' && input.signals.avgPartial === null));
   const up = contrib
-    .filter((c) => c.contribution > 0.05)
+    .filter((c) => c.contribution > 0.15)
     .sort((a, b) => b.contribution - a.contribution)
     .map<RiskReason>((c) => ({
       code: `MODELO_${c.feature}`,
@@ -97,7 +97,7 @@ export function computeRisk(input: RiskInput, model: LogisticModel, thresholds: 
       weight: c.contribution,
     }));
   const protect = contrib
-    .filter((c) => c.contribution <= 0.05)
+    .filter((c) => c.contribution <= 0.15)
     .sort((a, b) => a.contribution - b.contribution)
     .map<RiskReason>((c) => ({
       code: `MODELO_${c.feature}`,

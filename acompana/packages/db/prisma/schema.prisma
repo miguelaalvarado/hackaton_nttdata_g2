@@ -1,0 +1,464 @@
+// Acompaña — modelo de datos. Solo datos sintéticos. Fechas en UTC.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BECARIO
+  MENTOR
+  TUTOR
+  COORDINADOR
+}
+
+enum Specialty {
+  ACADEMICO
+  PSICOLOGIA
+}
+
+enum Color {
+  VERDE
+  AMARILLO
+  ROJO
+}
+
+enum ConsentType {
+  DATOS_LEY_29733
+  WHATSAPP
+  FAMILIA
+}
+
+enum AlertDirection {
+  SCHOLAR
+  TEAM
+}
+
+enum AlertStatus {
+  ABIERTA
+  EN_ATENCION
+  CERRADA
+}
+
+enum ActionType {
+  CONTACTO
+  DERIVACION
+  SESION
+  NOTA
+  CIERRE
+}
+
+enum MessageDirection {
+  IN
+  OUT
+}
+
+enum MessageStatus {
+  RECIBIDO
+  PROGRAMADO
+  ENVIADO
+  ENTREGADO
+  LEIDO
+  FALLIDO
+  BLOQUEADO
+}
+
+enum EnrollmentStatus {
+  EN_CURSO
+  APROBADO
+  DESAPROBADO
+}
+
+model University {
+  id       String    @id
+  name     String
+  city     String
+  regionId String
+  region   Region    @relation(fields: [regionId], references: [id])
+  careers  Career[]
+  scholars Scholar[]
+  users    User[]
+}
+
+model Region {
+  id           String       @id
+  name         String
+  universities University[]
+  scholars     Scholar[]
+}
+
+model Career {
+  id           String     @id
+  name         String
+  universityId String
+  university   University @relation(fields: [universityId], references: [id])
+  scholars     Scholar[]
+  courses      Course[]
+}
+
+/// Reglas de una cohorte. Configurables: el código nunca fija estos valores.
+model RuleSet {
+  id                String    @id
+  code              String    @unique
+  name              String
+  legalRef          String
+  passingGrade      Float
+  gpaWarningMargin  Float
+  minCreditsPerTerm Int
+  requireTopThird   Boolean
+  failRuleApplies   Boolean
+  maxFailedCourses  Int
+  awardedFrom       DateTime?
+  awardedUntil      DateTime?
+  scholars          Scholar[]
+}
+
+model User {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  role         Role
+  specialty    Specialty?
+  /// Alcance: null = Pronabec (todas las universidades).
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id])
+  isDemo       Boolean     @default(false)
+  scholar      Scholar?
+  mentorOf     MentorAssignment[] @relation("mentor")
+  alerts       Alert[]     @relation("assignee")
+  actions      AlertAction[]
+  careerId     String?
+  regionId     String?
+  createdAt    DateTime    @default(now())
+}
+
+model Scholar {
+  id               String     @id @default(cuid())
+  userId           String     @unique
+  user             User       @relation(fields: [userId], references: [id])
+  ruleSetId        String
+  ruleSet          RuleSet    @relation(fields: [ruleSetId], references: [id])
+  universityId     String
+  university       University @relation(fields: [universityId], references: [id])
+  careerId         String
+  career           Career     @relation(fields: [careerId], references: [id])
+  originRegionId   String
+  originRegion     Region     @relation(fields: [originRegionId], references: [id])
+  livesAlone       Boolean
+  awardedAt        DateTime
+  /// Número ficticio (+51 9XX XXX XXX). Nunca datos reales.
+  phoneE164        String     @unique
+  enrolledCredits  Int
+  cohortPercentile Float?
+  onboardingDoneAt DateTime?
+  lifeEventReported Boolean   @default(false)
+  persona          String?
+  /// Estado latente del generador sintético (solo demo: permite simular semanas futuras).
+  synthLatent      Json?
+
+  consents       Consent[]
+  onboarding     OnboardingAnswer?
+  checklist      ScholarChecklist[]
+  enrollments    Enrollment[]
+  goals          WeeklyGoal[]
+  signals        WeeklySignal[]
+  moods          MoodCheckin[]
+  risks          RiskSnapshot[]
+  profiles       ProfileSnapshot[]
+  alerts         Alert[]
+  conversation   Conversation?
+  mentors        MentorAssignment[]
+  mentorSessions MentorSession[]
+  familyContacts FamilyContact[]
+}
+
+model Consent {
+  id           String      @id @default(cuid())
+  scholarId    String
+  scholar      Scholar     @relation(fields: [scholarId], references: [id])
+  type         ConsentType
+  textVersion  String
+  /// Texto exacto aceptado.
+  textSnapshot String
+  channel      String
+  acceptedAt   DateTime
+  revokedAt    DateTime?
+
+  @@index([scholarId, type])
+}
+
+model OnboardingAnswer {
+  id                  String   @id @default(cuid())
+  scholarId           String   @unique
+  scholar             Scholar  @relation(fields: [scholarId], references: [id])
+  careerFit           Int
+  mood                Int
+  mathScore           Int
+  readingScore        Int
+  studiesAwayFromHome Boolean
+  extras              Json?
+  createdAt           DateTime @default(now())
+}
+
+model ChecklistItem {
+  id         String             @id
+  category   String
+  title      String
+  detail     String
+  dueDays    Int
+  scholars   ScholarChecklist[]
+}
+
+model ScholarChecklist {
+  id        String        @id @default(cuid())
+  scholarId String
+  scholar   Scholar       @relation(fields: [scholarId], references: [id])
+  itemId    String
+  item      ChecklistItem @relation(fields: [itemId], references: [id])
+  dueDate   DateTime
+  doneAt    DateTime?
+
+  @@unique([scholarId, itemId])
+}
+
+model Course {
+  id          String         @id
+  name        String
+  credits     Int
+  careerId    String
+  career      Career         @relation(fields: [careerId], references: [id])
+  /// Horario: [{ "dow": 1, "time": "08:00", "room": "A-201" }]
+  schedule    Json
+  /// Tema por semana del ciclo: { "6": "Derivadas" }
+  weeklyTopics Json
+  enrollments Enrollment[]
+}
+
+model Enrollment {
+  id            String           @id @default(cuid())
+  scholarId     String
+  scholar       Scholar          @relation(fields: [scholarId], references: [id])
+  courseId      String
+  course        Course           @relation(fields: [courseId], references: [id])
+  term          String
+  attempt       Int              @default(1)
+  partialGrades Float[]
+  finalGrade    Float?
+  status        EnrollmentStatus @default(EN_CURSO)
+
+  @@unique([scholarId, courseId, term, attempt])
+}
+
+model WeeklyGoal {
+  id               String   @id @default(cuid())
+  scholarId        String
+  scholar          Scholar  @relation(fields: [scholarId], references: [id])
+  weekStart        String
+  attendanceTarget Float
+  studyHoursTarget Int
+  /// [{ courseId, name, target, done, reinforcement }]
+  courseGoals      Json
+
+  @@unique([scholarId, weekStart])
+}
+
+model WeeklySignal {
+  id             String   @id @default(cuid())
+  scholarId      String
+  scholar        Scholar  @relation(fields: [scholarId], references: [id])
+  weekStart      String
+  weekNumber     Int
+  attendanceRate Float
+  activeDays     Int
+  studyHours     Float
+  studyHoursTarget Int
+  avgPartial     Float?
+  failedAttempts Int
+  mood           Int?
+
+  @@unique([scholarId, weekStart])
+}
+
+model MoodCheckin {
+  id        String   @id @default(cuid())
+  scholarId String
+  scholar   Scholar  @relation(fields: [scholarId], references: [id])
+  score     Int?
+  text      String?
+  channel   String
+  /// NINGUNO | MALESTAR | CRISIS
+  level     String   @default("NINGUNO")
+  createdAt DateTime @default(now())
+
+  @@index([scholarId, createdAt])
+}
+
+model RiskSnapshot {
+  id           String   @id @default(cuid())
+  scholarId    String
+  scholar      Scholar  @relation(fields: [scholarId], references: [id])
+  weekStart    String
+  color        Color
+  probability  Float
+  reasons      Json
+  rulesFired   String[]
+  modelVersion String
+  createdAt    DateTime @default(now())
+
+  @@index([scholarId, createdAt])
+}
+
+model ProfileSnapshot {
+  id        String   @id @default(cuid())
+  scholarId String
+  scholar   Scholar  @relation(fields: [scholarId], references: [id])
+  weekStart String
+  profiles  String[]
+  primary   String
+  evidence  Json
+  createdAt DateTime @default(now())
+
+  @@index([scholarId, createdAt])
+}
+
+model Alert {
+  id            String         @id @default(cuid())
+  dedupeKey     String         @unique
+  scholarId     String
+  scholar       Scholar        @relation(fields: [scholarId], references: [id])
+  direction     AlertDirection
+  severity      Color
+  profile       String
+  reason        String
+  nextStep      String
+  assigneeId    String?
+  assignee      User?          @relation("assignee", fields: [assigneeId], references: [id])
+  status        AlertStatus    @default(ABIERTA)
+  source        String         @default("RECALCULO_SEMANAL")
+  dueAt         DateTime?
+  firstActionAt DateTime?
+  slaMet        Boolean?
+  createdAt     DateTime       @default(now())
+  closedAt      DateTime?
+  actions       AlertAction[]
+
+  @@index([status, severity])
+}
+
+model AlertAction {
+  id      String     @id @default(cuid())
+  alertId String
+  alert   Alert      @relation(fields: [alertId], references: [id])
+  actorId String
+  actor   User       @relation(fields: [actorId], references: [id])
+  type    ActionType
+  note    String
+  at      DateTime   @default(now())
+}
+
+model MentorAssignment {
+  id        String   @id @default(cuid())
+  mentorId  String
+  mentor    User     @relation("mentor", fields: [mentorId], references: [id])
+  scholarId String
+  scholar   Scholar  @relation(fields: [scholarId], references: [id])
+  reason    String
+  createdAt DateTime @default(now())
+  active    Boolean  @default(true)
+
+  @@unique([mentorId, scholarId])
+}
+
+model MentorSession {
+  id        String   @id @default(cuid())
+  scholarId String
+  scholar   Scholar  @relation(fields: [scholarId], references: [id])
+  mentorId  String
+  at        DateTime
+  topic     String
+  note      String
+}
+
+model FamilyContact {
+  id                  String    @id @default(cuid())
+  scholarId           String
+  scholar             Scholar   @relation(fields: [scholarId], references: [id])
+  name                String
+  relation            String
+  phoneE164           String
+  authorizedConsentId String?
+  revokedAt           DateTime?
+}
+
+model Conversation {
+  id              String    @id @default(cuid())
+  scholarId       String    @unique
+  scholar         Scholar   @relation(fields: [scholarId], references: [id])
+  lastInboundAt   DateTime?
+  optedOutAt      DateTime?
+  optOutConfirmed Boolean   @default(false)
+  messages        Message[]
+}
+
+model Message {
+  id                String           @id @default(cuid())
+  conversationId    String
+  conversation      Conversation     @relation(fields: [conversationId], references: [id])
+  direction         MessageDirection
+  /// PLATFORM | REPLY | HUMAN | SAFETY | OPT_OUT_CONFIRMATION | SCHOLAR
+  initiator         String
+  kind              String
+  templateName      String?
+  category          String?
+  body              String
+  status            MessageStatus
+  channel           String
+  providerMessageId String?          @unique
+  policyDecision    String?
+  errorCode         String?
+  errorClass        String?
+  attempts          Int              @default(0)
+  scheduledFor      DateTime?
+  sentAt            DateTime?
+  createdAt         DateTime         @default(now())
+  events            MessageEvent[]
+
+  @@index([conversationId, createdAt])
+}
+
+model MessageEvent {
+  id        String   @id @default(cuid())
+  messageId String?
+  message   Message? @relation(fields: [messageId], references: [id])
+  providerMessageId String?
+  status    String
+  errorCode String?
+  raw       Json?
+  at        DateTime @default(now())
+}
+
+model AppConfig {
+  key   String @id
+  value Json
+}
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  actorId  String?
+  action   String
+  entity   String
+  entityId String?
+  at       DateTime @default(now())
+}
+
+/// Reloj de la demo: permite "avanzar semana" sin esperar 7 días.
+model DemoClock {
+  id         Int      @id @default(1)
+  weekNumber Int
+  /// Desfase en días respecto al reloj real.
+  offsetDays Int      @default(0)
+}
