@@ -413,6 +413,7 @@ model Message {
   initiator         String
   kind              String
   templateName      String?
+  templateParams    String[]
   category          String?
   body              String
   status            MessageStatus

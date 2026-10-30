@@ -16,7 +16,8 @@
     "@prisma/client": "6.19.3",
     "prisma": "6.19.3",
     "@acompana/llm": "*",
-    "@acompana/messaging": "*"
+    "@acompana/messaging": "*",
+    "pg-boss": "10.4.2"
   },
   "exports": {
     ".": "./src/index.ts",

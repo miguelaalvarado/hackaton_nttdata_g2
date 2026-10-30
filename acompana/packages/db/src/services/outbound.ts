@@ -61,6 +61,7 @@ export async function sendToScholar(req: OutboundRequest) {
       initiator: req.intent.initiator,
       kind: req.intent.kind,
       templateName: req.intent.templateName,
+      templateParams: req.templateParams ?? [],
       category: tpl?.category,
       body,
       status: 'PROGRAMADO',
@@ -68,14 +69,14 @@ export async function sendToScholar(req: OutboundRequest) {
       createdAt: await demoNow(),
     },
   });
-  return deliverMessage(msg.id, req.templateParams);
+  return deliverMessage(msg.id);
 }
 
 /**
  * Entrega un mensaje: re-evalúa políticas (pudo llegar una BAJA mientras esperaba), envía y clasifica errores.
  * Transitorio → reintento con backoff exponencial. Política/permanente → FALLIDO, nunca se reintenta.
  */
-export async function deliverMessage(messageId: string, templateParams?: string[]) {
+export async function deliverMessage(messageId: string) {
   const settings = await getSettings();
   const msg = await prisma.message.findUniqueOrThrow({ where: { id: messageId }, include: { conversation: true } });
   if (msg.status !== 'PROGRAMADO') return msg;
@@ -108,7 +109,7 @@ export async function deliverMessage(messageId: string, templateParams?: string[
     to: channel.name === 'simulator' ? scholar.id : scholar.phoneE164,
     kind: intent.kind,
     text: intent.kind === 'FREE' ? msg.body : undefined,
-    template: tpl ? { name: tpl.name, language: tpl.language, params: templateParams ?? [] } : undefined,
+    template: tpl ? { name: tpl.name, language: tpl.language, params: msg.templateParams } : undefined,
   });
 
   if (result.ok) {
