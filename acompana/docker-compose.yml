@@ -1,0 +1,63 @@
+# Demo completa con un solo comando:  docker compose up --build
+# Web: http://localhost:3000 · API: http://localhost:4000/health
+name: acompana
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://acompana:acompana@db:5432/acompana?schema=public
+  JWT_SECRET: ${JWT_SECRET:-solo-demo-cambiar-en-produccion}
+  WEB_ORIGIN: http://localhost:3000
+  LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-claude-opus-5-5}
+  AWS_REGION: ${AWS_REGION:-}
+  BEDROCK_MODEL: ${BEDROCK_MODEL:-anthropic.claude-opus-5-5}
+  MESSAGING_CHANNEL: simulator
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: acompana
+      POSTGRES_PASSWORD: acompana
+      POSTGRES_DB: acompana
+    ports: ["5432:5432"]
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acompana"]
+      interval: 3s
+      retries: 20
+
+  migrate:
+    build: { context: ., target: app }
+    environment: *app-env
+    command: sh -c "npm run migrate -w @acompana/db && npm run seed:ensure -w @acompana/db"
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., target: app }
+    environment:
+      <<: *app-env
+      API_PORT: "4000"
+    ports: ["4000:4000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: app }
+    environment: *app-env
+    command: ["npm", "run", "start", "-w", "@acompana/worker"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  dbdata:

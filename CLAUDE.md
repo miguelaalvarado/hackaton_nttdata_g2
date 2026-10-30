@@ -88,9 +88,15 @@ Fuente normativa: DS 017-2026-MINEDU (publicado en El Peruano, sept. 2026). Ante
 - `apps/api`: Node (Fastify) — REST, autenticación demo por rol (JWT), webhooks, recalculo semanal.
 - `apps/worker`: proceso de cola (pg-boss sobre PostgreSQL) para envíos, reintentos y tareas programadas.
 - `packages/domain`: lógica pura y testeable (reglas de beca, semáforo, perfiles, alertas, políticas de mensajería, detección de crisis). Sin I/O.
-- `packages/db`: Prisma (schema, migraciones, seed sintético).
+- `packages/db`: Prisma (schema, migraciones, seed sintético) y **servicios de aplicación** en `src/services`
+  (recálculo, alertas, conversación, envío). Los usan API, worker y seed.
 - `packages/llm`: `LLMProvider` + adaptadores. `packages/messaging`: `MessagingChannel` + adaptadores + catálogo de plantillas.
 - PostgreSQL. `docker compose up` levanta todo. Infra AWS preparada en `acompana/infra/` (no requerida para la demo).
+
+### Comandos (desde `acompana/`)
+- Demo completa: `docker compose up --build` (web :3000, API :4000).
+- Desarrollo: `npm install`, `npm run db:migrate`, `npm run db:seed`, `npm run dev:api|dev:worker|dev:web`.
+- Calidad: `npm test` y `npm run typecheck`. Reentrenar el modelo sintético: `npm run train` (actualiza `risk/model.json`).
 
 ## 4. Convenciones
 - Código (identificadores) en inglés; textos de UI, mensajes al becario y documentación en español (Perú), trato de "tú", tono cálido y claro.

@@ -59,7 +59,7 @@ function evalTopThird(rules: RuleSetConfig, rec: AcademicRecord): RuleEvaluation
   return {
     rule: 'TERCIO_SUPERIOR',
     status: 'EN_RIESGO',
-    detail: `Estás en el puesto ${Math.round((1 - rec.cohortPercentile) * 100)}% desde arriba; la meta es el tercio superior.`,
+    detail: `Hoy estás en el percentil ${Math.round(rec.cohortPercentile * 100)} de tu carrera; la meta es el tercio superior (percentil 67 o más).`,
   };
 }
 
