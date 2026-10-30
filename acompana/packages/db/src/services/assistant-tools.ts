@@ -4,6 +4,7 @@ import { prisma } from '../index';
 import { currentWeek } from './clock';
 import { getSettings } from './config';
 import { toRuleConfig } from './recalc';
+import { ensureStudyPlan, todayDow } from './study-plan';
 
 const DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
@@ -70,7 +71,12 @@ export function makeToolRunner(scholarId: string, effects: ToolEffects) {
           ...c,
           progress: c.target ? Math.min(c.done / c.target, 1) : 1,
         }));
+        const plan = await ensureStudyPlan(scholarId);
+        const today = await todayDow();
+        const norm = (d: number) => (d === 0 ? 7 : d);
+        const next = plan?.blocks.find((b) => !b.doneAt && norm(b.dow) >= norm(today));
         return JSON.stringify({
+          nextBlock: next ? { title: next.title, day: DAYS[next.dow], isToday: next.dow === today, start: next.start, minutes: next.minutes, topic: next.topic } : null,
           attendanceTarget: goal?.attendanceTarget,
           attendance: sig?.attendanceRate,
           studyHoursTarget: goal?.studyHoursTarget ?? sig?.studyHoursTarget,

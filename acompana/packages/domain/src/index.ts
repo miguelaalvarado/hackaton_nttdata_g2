@@ -16,3 +16,5 @@ export * from './text';
 export * from './random';
 export * from './synthetic';
 export { default as riskModel } from './risk/model.json';
+export * from './study-plan';
+export * from './auth';

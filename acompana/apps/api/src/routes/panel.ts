@@ -142,6 +142,7 @@ export async function panelRoutes(app: FastifyInstance) {
         profiles: { orderBy: { createdAt: 'asc' } },
         mentors: { where: { active: true }, include: { mentor: { select: { name: true } } } },
         checklist: { include: { item: true } },
+        studyPlans: { orderBy: { weekStart: 'desc' }, take: 1, include: { blocks: true } },
         alerts: {
           orderBy: { createdAt: 'desc' },
           include: { assignee: { select: { name: true, role: true, specialty: true } }, actions: { include: { actor: { select: { name: true } } }, orderBy: { at: 'asc' } } },
@@ -167,6 +168,16 @@ export async function panelRoutes(app: FastifyInstance) {
       risks: s.risks.map((r) => ({ weekStart: r.weekStart, color: r.color, probability: r.probability, reasons: r.reasons, rulesFired: r.rulesFired })),
       profiles: s.profiles.map((p) => ({ weekStart: p.weekStart, profiles: p.profiles, primary: p.primary, evidence: p.evidence })),
       rules: await rulesStatus(id),
+      studyPlan: s.studyPlans[0]
+        ? {
+            weekStart: s.studyPlans[0].weekStart,
+            priorities: s.studyPlans[0].priorities,
+            blocksTotal: s.studyPlans[0].blocks.length,
+            blocksDone: s.studyPlans[0].blocks.filter((b) => b.doneAt).length,
+            minutesPlanned: s.studyPlans[0].blocks.reduce((a, b) => a + b.minutes, 0),
+            minutesDone: s.studyPlans[0].blocks.filter((b) => b.doneAt).reduce((a, b) => a + b.minutes, 0),
+          }
+        : null,
       alerts: s.alerts
         .filter((a) => !hideEmotional || a.profile !== 'MALESTAR_EMOCIONAL')
         .map((a) => ({ ...a, sla: slaStatus(a, now) })),

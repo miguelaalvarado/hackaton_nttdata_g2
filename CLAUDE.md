@@ -23,6 +23,9 @@ primeros meses se acumulan presiones académicas, emocionales, vocacionales y ec
 
 Un coordinador de universidad solo ve becarios de su universidad; uno de Pronabec ve todos. La autorización se valida **en la API**, nunca solo en la UI.
 
+**Ingreso:** DNI (8 dígitos) + contraseña. El DNI identifica, la contraseña autentica (el DNI solo nunca basta). Contraseñas con
+PBKDF2-SHA256 y sal; error único "DNI o contraseña incorrectos"; bloqueo de 15 min tras 5 intentos fallidos. Sin accesos directos sin contraseña.
+
 ## 2. Reglas de negocio
 
 ### 2.1 Reglas de la beca — siempre configurables (tabla `RuleSet`), nunca fijas en el código
@@ -48,6 +51,14 @@ Fuente normativa: DS 017-2026-MINEDU (publicado en El Peruano, sept. 2026). Ante
 - **Prioridad:** `MALESTAR_EMOCIONAL` y `EVENTO_VIDA` se atienden primero.
 - Becario nuevo con un curso desaprobado → alerta **roja**.
 - `TIEMPO_RECURSOS` **nunca** reduce créditos por su cuenta: solo sugiere hablar con el tutor/coordinador (reducir créditos puede incumplir la regla de matrícula).
+
+### 2.3 bis Plan de estudio personalizado (`packages/domain/src/study-plan.ts`)
+- Se genera por semana a partir de notas parciales, diagnóstico de entrada, cursos desaprobados, horario de clases y perfil.
+- Cubre la meta de horas; ningún bloque choca con clases ni cae entre 22:00 y 07:00. Cada curso tiene tiempo y un motivo visible.
+- Refuerzo = más tiempo; asesoría reservada solo para los cursos más comprometidos (máx. 2). Nivelación si el diagnóstico es bajo
+  o se desaprobó un módulo cuantitativo; cuenta dentro de las horas.
+- `TIEMPO_RECURSOS` → bloques cortos; el plan **nunca** cambia créditos ni matrícula.
+- El becario marca bloques hechos (solo hoy o días pasados); eso actualiza sus horas de estudio (señal del semáforo).
 
 ### 2.4 Alertas en dos direcciones
 - Al becario: siempre con un **siguiente paso concreto**; tono de acompañamiento, nunca regaño.

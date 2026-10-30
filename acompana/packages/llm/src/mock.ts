@@ -46,10 +46,12 @@ export class MockProvider implements LLMProvider {
 
     if (/no (cumpli|pude|llegue|alcance)|me atrase|atrasad|no estudie|falte/.test(n)) {
       const g = await tool('get_weekly_goals');
+      const nb = g.nextBlock as { title: string; day: string; isToday: boolean; start: string; minutes: number; topic: string | null } | null;
       const course = g.courses?.find((c: { progress: number }) => c.progress < 1)?.name ?? 'el curso que más te cuesta';
-      return done(
-        `Gracias por contarlo; pasa y no define tu semestre. Propongo algo pequeño: hoy 45 minutos de ${course} y mañana otro bloque igual. Llevas ${g.studyHours} de ${g.studyHoursTarget} horas de estudio esta semana. ¿A qué hora te acomoda el primer bloque?`,
-      );
+      const step = nb
+        ? `Tu siguiente bloque del plan es ${nb.title} ${nb.isToday ? 'hoy' : `el ${nb.day}`} a las ${nb.start} (${nb.minutes} min${nb.topic ? `, tema: ${nb.topic}` : ''}). Si ese horario no te funciona, muévelo a otro hueco del mismo día.`
+        : `Propongo algo pequeño: hoy 45 minutos de ${course} y mañana otro bloque igual.`;
+      return done(`Gracias por contarlo; pasa y no define tu semestre. Llevas ${g.studyHours} de ${g.studyHoursTarget} horas esta semana. ${step} ¿Te animas?`);
     }
 
     if (/clase|horario|aula|manana tengo|que tengo|recuerda/.test(n)) {

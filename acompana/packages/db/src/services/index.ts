@@ -8,3 +8,6 @@ export * from './assistant-tools';
 export * from './queue';
 export * from './demo';
 export * from './worker';
+export * from './password';
+export * from './study-plan';
+export * from './errors';

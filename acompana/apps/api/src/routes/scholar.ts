@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '@acompana/db';
-import { currentWeek, getSettings, recalcScholar, rulesStatus } from '@acompana/db/services';
+import { currentWeek, ensureStudyPlan, getSettings, markStudyBlock, recalcScholar, rulesStatus, todayDow } from '@acompana/db/services';
 import { HttpError, requireRole } from '../auth';
 import { publicDiagnostic, scoreDiagnostic } from '../diagnostic';
 
@@ -185,16 +185,21 @@ export async function scholarRoutes(app: FastifyInstance) {
   app.get('/scholar/plan', async (req) => {
     const id = me(req);
     const { weekStart, weekNumber } = await currentWeek();
-    const [goal, signal, enrollments, history] = await Promise.all([
-      prisma.weeklyGoal.findUnique({ where: { scholarId_weekStart: { scholarId: id, weekStart } } }),
+    const [plan, goal, signal, enrollments] = await Promise.all([
+      ensureStudyPlan(id),
+      prisma.weeklyGoal.findFirst({ where: { scholarId: id }, orderBy: { weekStart: 'desc' } }),
       prisma.weeklySignal.findUnique({ where: { scholarId_weekStart: { scholarId: id, weekStart } } }),
       prisma.enrollment.findMany({ where: { scholarId: id }, include: { course: true }, orderBy: { course: { name: 'asc' } } }),
-      prisma.weeklySignal.findMany({ where: { scholarId: id }, orderBy: { weekStart: 'asc' } }),
     ]);
     return {
       week: { weekStart, weekNumber },
+      todayDow: await todayDow(),
       goal,
       signal,
+      studyPlan: plan && { priorities: plan.priorities, notes: plan.notes, blocks: plan.blocks },
+      classes: enrollments
+        .filter((e) => e.status === 'EN_CURSO')
+        .flatMap((e) => (e.course.schedule as { dow: number; time: string; room: string }[]).map((x) => ({ ...x, course: e.course.name }))),
       courses: enrollments.map((e) => ({
         name: e.course.name,
         credits: e.course.credits,
@@ -203,9 +208,16 @@ export async function scholarRoutes(app: FastifyInstance) {
         finalGrade: e.finalGrade,
         topic: (e.course.weeklyTopics as Record<string, string>)[String(weekNumber)] ?? null,
       })),
-      history: history.map((h) => ({ weekNumber: h.weekNumber, attendanceRate: h.attendanceRate, studyHours: h.studyHours, studyHoursTarget: h.studyHoursTarget })),
       rules: await rulesStatus(id),
     };
+  });
+
+  /** El becario marca un bloque de su plan como hecho (o lo desmarca). */
+  app.post('/scholar/plan/blocks/:blockId', async (req) => {
+    const id = me(req);
+    const { blockId } = z.object({ blockId: z.string() }).parse(req.params);
+    const { done } = z.object({ done: z.boolean() }).parse(req.body);
+    return markStudyBlock(id, blockId, done);
   });
 
   app.post('/scholar/consents/:type', async (req) => {

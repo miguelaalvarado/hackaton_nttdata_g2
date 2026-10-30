@@ -8,6 +8,15 @@ import {
   addHours,
   backoffDelayMs,
   buildAlerts,
+  buildStudyPlan,
+  canMarkBlock,
+  isLocked,
+  isValidDni,
+  normalizeDni,
+  premarkDoneBlocks,
+  registerAttempt,
+  type LoginAttemptState,
+  type PlanCourse,
   clamp,
   computeRisk,
   createRng,
@@ -440,7 +449,11 @@ function toolRunner(sid: string, effects: { humanRequested: { reason: string; te
         const goal = latestGoal(sid);
         const sig = db.weeklySignals.find((x: Row) => x.scholarId === sid && x.weekStart === weekStart);
         const courses = ((goal?.courseGoals ?? []) as Row[]).map((c) => ({ ...c, progress: c.target ? Math.min(c.done / c.target, 1) : 1 }));
-        return JSON.stringify({ attendanceTarget: goal?.attendanceTarget, attendance: sig?.attendanceRate, studyHoursTarget: goal?.studyHoursTarget ?? sig?.studyHoursTarget, studyHours: sig?.studyHours ?? 0, courses });
+        const plan = ensureStudyPlan(sid);
+        const today = todayDow();
+        const nb = plan ? planBlocks(plan.id).find((b) => !b.doneAt && normDow(b.dow) >= normDow(today)) : undefined;
+        const nextBlock = nb ? { title: nb.title, day: DAYS[nb.dow], isToday: nb.dow === today, start: nb.start, minutes: nb.minutes, topic: nb.topic } : null;
+        return JSON.stringify({ nextBlock, attendanceTarget: goal?.attendanceTarget, attendance: sig?.attendanceRate, studyHoursTarget: goal?.studyHoursTarget ?? sig?.studyHoursTarget, studyHours: sig?.studyHours ?? 0, courses });
       }
       case 'get_rules_status':
         return JSON.stringify(rulesStatus(sid));
@@ -607,6 +620,91 @@ async function advanceDemoWeek() {
   return { from: before.weekStart, to: weekStart, weekNumber: week, recalc };
 }
 
+/* ---------- ingreso con DNI ---------- */
+const loginAttempts = new Map<string, LoginAttemptState>();
+
+/** Verifica PBKDF2-SHA256 (mismo formato que packages/db/src/services/password.ts) con Web Crypto. */
+async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
+  if (!stored) return false;
+  const [scheme, it, saltB64, hashB64] = stored.split('$');
+  if (scheme !== 'pbkdf2') return false;
+  const b64 = (x: string) => Uint8Array.from(atob(x), (c) => c.charCodeAt(0));
+  const expected = b64(hashB64);
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(saltB64), iterations: Number(it) }, key, expected.length * 8));
+  let diff = bits.length ^ expected.length;
+  for (let i = 0; i < expected.length; i++) diff |= bits[i] ^ expected[i];
+  return diff === 0;
+}
+
+/* ---------- plan de estudio personalizado (misma función de dominio que la API) ---------- */
+const normDow = (x: number) => (x === 0 ? 7 : x);
+function todayDow(): number {
+  const p = zonedParts(demoNow(), 'America/Lima');
+  return new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay();
+}
+function planBlocks(planId: string): Row[] {
+  return (db.studyBlocks as Row[]).filter((b) => b.planId === planId).sort((a, b) => a.dow - b.dow || a.start.localeCompare(b.start));
+}
+function ensureStudyPlan(sid: string): Row | null {
+  db.studyPlans ??= [];
+  db.studyBlocks ??= [];
+  const { weekStart, weekNumber, now } = currentWeek();
+  const existing = (db.studyPlans as Row[]).find((x) => x.scholarId === sid && x.weekStart === weekStart);
+  if (existing) return existing;
+  const s = scholar(sid);
+  if (!s.onboardingDoneAt) return null;
+  const enr = db.enrollments.filter((e: Row) => e.scholarId === sid);
+  const ob = db.onboardings.find((o: Row) => o.scholarId === sid);
+  const prof = latestBy(db.profileSnapshots, sid);
+  const sig = db.weeklySignals.find((x: Row) => x.scholarId === sid && x.weekStart === weekStart);
+  const rs = ruleSet(s);
+  const courses: PlanCourse[] = enr
+    .filter((e: Row) => e.status === 'EN_CURSO')
+    .map((e: Row) => {
+      const c = course(e.courseId);
+      return {
+        id: c.id,
+        name: c.name,
+        credits: c.credits,
+        schedule: c.schedule,
+        avgGrade: e.partialGrades.length ? Math.round((e.partialGrades.reduce((a: number, b: number) => a + b, 0) / e.partialGrades.length) * 10) / 10 : null,
+        topic: (c.weeklyTopics as Row)[String(weekNumber)] ?? null,
+      };
+    });
+  const plan = buildStudyPlan({
+    courses,
+    studyHoursTarget: latestGoal(sid)?.studyHoursTarget ?? 12,
+    passingGrade: rs.passingGrade,
+    gpaWarningMargin: rs.gpaWarningMargin,
+    diagnostic: { math: ob?.mathScore ?? null, reading: ob?.readingScore ?? null },
+    failedCourseNames: enr.filter((e: Row) => e.status === 'DESAPROBADO').map((e: Row) => course(e.courseId).name),
+    profiles: prof?.profiles ?? [],
+  });
+  const done = premarkDoneBlocks(plan.blocks, sig?.studyHours ?? 0, todayDow());
+  const row: Row = { id: id('plan'), scholarId: sid, weekStart, priorities: plan.priorities, notes: plan.notes, createdAt: iso(now) };
+  (db.studyPlans as Row[]).push(row);
+  plan.blocks.forEach((b, i) => (db.studyBlocks as Row[]).push({ ...b, id: id('blk'), planId: row.id, doneAt: done[i] ? iso(now) : null }));
+  save();
+  return row;
+}
+function markStudyBlock(sid: string, blockId: string, done: boolean) {
+  const b = (db.studyBlocks as Row[]).find((x) => x.id === blockId);
+  const plan = b && (db.studyPlans as Row[]).find((x) => x.id === b.planId);
+  if (!b || !plan || plan.scholarId !== sid) throw new HttpError(404, 'BLOQUE_NO_ENCONTRADO', 'Bloque no encontrado.');
+  const { weekStart, now } = currentWeek();
+  if (plan.weekStart !== weekStart) throw new HttpError(409, 'SEMANA_CERRADA', 'Ese bloque es de una semana anterior.');
+  if (done && !canMarkBlock(b.dow, todayDow())) throw new HttpError(409, 'BLOQUE_FUTURO', 'Podrás marcarlo cuando llegue ese día.');
+  if (Boolean(b.doneAt) === done) return b;
+  const delta = (done ? 1 : -1) * (b.minutes / 60);
+  b.doneAt = done ? iso(now) : null;
+  const sig = db.weeklySignals.find((x: Row) => x.scholarId === sid && x.weekStart === weekStart);
+  if (sig) sig.studyHours = Math.max(0, Math.round((sig.studyHours + delta) * 100) / 100);
+  const g = latestGoal(sid);
+  if (g && b.courseId) g.courseGoals = (g.courseGoals as Row[]).map((c) => (c.courseId === b.courseId ? { ...c, done: Math.max(0, Math.round((c.done + delta) * 10) / 10) } : c));
+  return b;
+}
+
 /* ---------- rutas ---------- */
 const latestBy = (rows: Row[], sid: string) => {
   let best: Row | undefined;
@@ -628,12 +726,11 @@ export async function handle(method: string, path: string, body: any, user: Auth
 async function route(method: string, p: string, q: Record<string, string>, m: (re: RegExp) => RegExpMatchArray | null, body: any, user: AuthUser | null): Promise<any> {
   /* auth */
   if (method === 'GET' && p === '/auth/demo-users') {
-    const order = ['BECARIO', 'COORDINADOR', 'MENTOR', 'TUTOR'];
     return (db.users as Row[])
-      .filter((u) => u.isDemo)
-      .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name) || order.indexOf(a.role) - order.indexOf(b.role))
+      .filter((u) => u.isDemo && u.dni)
+      .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name))
       .map((u) => ({
-        id: u.id,
+        dni: u.dni,
         name: u.name,
         role: u.role,
         specialty: u.specialty,
@@ -641,9 +738,17 @@ async function route(method: string, p: string, q: Record<string, string>, m: (r
         persona: db.scholars.find((s: Row) => s.userId === u.id)?.persona ?? null,
       }));
   }
-  if (method === 'POST' && p === '/auth/demo-login') {
-    const u = db.users.find((x: Row) => x.id === body.userId && x.isDemo);
-    if (!u) throw new HttpError(404, 'USUARIO_NO_ENCONTRADO', 'Usuario de demo no encontrado.');
+  if (method === 'POST' && p === '/auth/login') {
+    const dni = normalizeDni(String(body.dni ?? ''));
+    if (!isValidDni(dni)) throw new HttpError(400, 'DNI_INVALIDO', 'El DNI debe tener 8 dígitos.');
+    const nowMs = Date.now();
+    if (isLocked(loginAttempts.get(dni), nowMs)) {
+      throw new HttpError(429, 'INGRESO_BLOQUEADO', 'Demasiados intentos. Vuelve a intentarlo en 15 minutos o pide ayuda a tu coordinador.');
+    }
+    const u = db.users.find((x: Row) => x.dni === dni);
+    const ok = Boolean(u) && (await verifyPassword(String(body.password ?? ''), u!.passwordHash));
+    loginAttempts.set(dni, registerAttempt(loginAttempts.get(dni), ok, nowMs));
+    if (!ok || !u) throw new HttpError(401, 'CREDENCIALES_INVALIDAS', 'DNI o contraseña incorrectos.');
     const s = db.scholars.find((x: Row) => x.userId === u.id);
     const payload: AuthUser = { sub: u.id, name: u.name, role: u.role, specialty: u.specialty, universityId: u.universityId, scholarId: s?.id ?? null };
     return { token: 'demo-navegador', user: payload };
@@ -697,21 +802,28 @@ async function route(method: string, p: string, q: Record<string, string>, m: (r
       return { ok: true };
     }
     if (method === 'GET' && p === '/scholar/plan') {
+      const plan = ensureStudyPlan(sid);
+      const enr = db.enrollments.filter((e: Row) => e.scholarId === sid);
       return {
         week: { weekStart, weekNumber },
+        todayDow: todayDow(),
         goal: latestGoal(sid) ?? null,
         signal: db.weeklySignals.find((x: Row) => x.scholarId === sid && x.weekStart === weekStart) ?? null,
-        courses: db.enrollments
-          .filter((e: Row) => e.scholarId === sid)
+        studyPlan: plan && { priorities: plan.priorities, notes: plan.notes, blocks: planBlocks(plan.id) },
+        classes: enr
+          .filter((e: Row) => e.status === 'EN_CURSO')
+          .flatMap((e: Row) => (course(e.courseId).schedule as Row[]).map((x) => ({ ...x, course: course(e.courseId).name }))),
+        courses: enr
           .map((e: Row) => {
             const c = course(e.courseId);
             return { name: c.name, credits: c.credits, status: e.status, partialGrades: e.partialGrades, finalGrade: e.finalGrade, topic: (c.weeklyTopics as Row)[String(weekNumber)] ?? null };
           })
           .sort((a: Row, b: Row) => a.name.localeCompare(b.name)),
-        history: db.weeklySignals.filter((h: Row) => h.scholarId === sid).map((h: Row) => ({ weekNumber: h.weekNumber, attendanceRate: h.attendanceRate, studyHours: h.studyHours, studyHoursTarget: h.studyHoursTarget })),
         rules: rulesStatus(sid),
       };
     }
+    const blk = m(/^\/scholar\/plan\/blocks\/([^/]+)$/);
+    if (method === 'POST' && blk) return markStudyBlock(sid, blk[1], Boolean(body.done));
     if (method === 'POST' && p === '/scholar/life-event') {
       s.lifeEventReported = true;
       (db.moodCheckins as Row[]).push({ id: id('mood'), scholarId: sid, score: null, text: `Evento de vida: ${String(body.note ?? '').slice(0, 500)}`, channel: 'web', level: 'NINGUNO', createdAt: iso(now) });
@@ -837,6 +949,19 @@ async function route(method: string, p: string, q: Record<string, string>, m: (r
         risks: db.riskSnapshots.filter((r: Row) => r.scholarId === sid),
         profiles: db.profileSnapshots.filter((r: Row) => r.scholarId === sid),
         rules: rulesStatus(sid),
+        studyPlan: (() => {
+          const plan = [...(db.studyPlans as Row[])].reverse().find((x) => x.scholarId === sid);
+          if (!plan) return null;
+          const bl = planBlocks(plan.id);
+          return {
+            weekStart: plan.weekStart,
+            priorities: plan.priorities,
+            blocksTotal: bl.length,
+            blocksDone: bl.filter((b) => b.doneAt).length,
+            minutesPlanned: bl.reduce((a, b) => a + b.minutes, 0),
+            minutesDone: bl.filter((b) => b.doneAt).reduce((a, b) => a + b.minutes, 0),
+          };
+        })(),
         alerts: [...db.alerts]
           .reverse()
           .filter((a: Row) => a.scholarId === sid && (!hideEmotional || a.profile !== 'MALESTAR_EMOCIONAL'))

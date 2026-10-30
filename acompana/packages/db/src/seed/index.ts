@@ -6,6 +6,7 @@
 import { clamp, createRng, sampleLatent, sampleWeek, weekKey, type LatentStudent, type WeeklySignals } from '@acompana/domain';
 import { prisma, type Prisma } from '../index';
 import { DEFAULT_SETTINGS, saveSettings } from '../services/config';
+import { hashPassword } from '../services/password';
 import { recalcAll } from '../services/recalc';
 import { CAREER_COURSES, CAREERS, CHECKLIST, COMMON_COURSES, FIRST_NAMES_F, FIRST_NAMES_M, LAST_NAMES, REGIONS, UNIVERSITIES } from './catalog';
 
@@ -28,7 +29,7 @@ const termStart = at(1, 0);
 
 async function wipe() {
   const tables = [
-    'messageEvent', 'message', 'conversation', 'alertAction', 'alert', 'riskSnapshot', 'profileSnapshot', 'moodCheckin',
+    'studyBlock', 'studyPlan', 'messageEvent', 'message', 'conversation', 'alertAction', 'alert', 'riskSnapshot', 'profileSnapshot', 'moodCheckin',
     'weeklySignal', 'weeklyGoal', 'enrollment', 'course', 'scholarChecklist', 'checklistItem', 'onboardingAnswer', 'consent',
     'mentorSession', 'mentorAssignment', 'familyContact', 'scholar', 'user', 'career', 'university', 'region', 'ruleSet',
     'appConfig', 'auditLog', 'demoClock',
@@ -185,13 +186,19 @@ async function main() {
   const courses: Prisma.CourseCreateManyInput[] = [];
   for (const u of UNIVERSITIES)
     for (const [c] of CAREERS) {
-      [...COMMON_COURSES, ...CAREER_COURSES[c]].forEach((t, i) => {
+      // Horario sin choques: 20 franjas (lun–vie × 4 horas); el curso j toma las franjas j y j+12 (dos días distintos).
+      const times = ['08:00', '10:00', '14:00', '16:00'];
+      const slot = (k: number) => ({ dow: (k % 5) + 1, time: times[Math.floor(k / 5)], room: rooms[k % rooms.length] });
+      let j = 0;
+      [...COMMON_COURSES, ...CAREER_COURSES[c]].forEach((t) => {
+        const schedule = t.code === 'NIV' ? [] : [slot(j), slot(j + 12)];
+        if (t.code !== 'NIV') j++;
         courses.push({
           id: `${u.id}-${c}-${t.code}`,
           name: t.name,
           credits: t.credits,
           careerId: `${u.id}-${c}`,
-          schedule: t.code === 'NIV' ? [] : [{ dow: 1 + (i % 5), time: ['08:00', '10:00', '14:00', '16:00'][i % 4], room: rooms[i % rooms.length] }, { dow: 1 + ((i + 2) % 5), time: ['08:00', '10:00', '14:00', '16:00'][(i + 1) % 4], room: rooms[(i + 3) % rooms.length] }],
+          schedule,
           weeklyTopics: t.topics,
         });
       });
@@ -400,6 +407,24 @@ async function main() {
   await prisma.weeklyGoal.createMany({ data: goals });
   await prisma.conversation.createMany({ data: convs });
   await prisma.mentorAssignment.createMany({ data: mentorships });
+
+  // Cuentas de prueba: DNI ficticio (rango 9900xxxx, no asignado a personas reales en estos datos) + contraseña cifrada.
+  const demoPassword = process.env.DEMO_PASSWORD ?? 'Acompana2026';
+  const DEMO_DNI: Record<string, string> = {
+    'usr-sch-ana': '99000101',
+    'usr-sch-luis': '99000102',
+    'usr-sch-rosa': '99000103',
+    'usr-sch-pedro': '99000104',
+    'usr-pronabec': '99000201',
+    'usr-U1-coord': '99000202',
+    'usr-U1-tutor': '99000203',
+    'usr-U1-psico': '99000204',
+    'usr-mentor-1': '99000301',
+    'usr-mentor-4': '99000302',
+  };
+  for (const [userId, dni] of Object.entries(DEMO_DNI)) {
+    await prisma.user.update({ where: { id: userId }, data: { dni, passwordHash: hashPassword(demoPassword) } });
+  }
 
   // Percentil en la cohorte de su carrera (por promedio de parciales)
   const byCareer = new Map<string, { id: string; avg: number }[]>();

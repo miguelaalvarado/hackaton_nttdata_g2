@@ -82,6 +82,20 @@ export default function ScholarDetail() {
         </Card>
       </div>
 
+      {d.studyPlan && (
+        <Card title={`Plan de estudio · semana ${d.studyPlan.weekStart}`}>
+          <p className="small" style={{ marginTop: 0 }}>
+            Cumplimiento: {d.studyPlan.blocksDone} de {d.studyPlan.blocksTotal} bloques ({(d.studyPlan.minutesDone / 60).toFixed(1)} h de {(d.studyPlan.minutesPlanned / 60).toFixed(1)} h).
+          </p>
+          <div className="bar" style={{ marginBottom: 8 }}><span style={{ width: `${d.studyPlan.minutesPlanned ? Math.round((d.studyPlan.minutesDone / d.studyPlan.minutesPlanned) * 100) : 0}%` }} /></div>
+          {d.studyPlan.priorities.map((p: any) => (
+            <p key={p.courseId} className="small" style={{ margin: '3px 0' }}>
+              <strong>{p.name}</strong> · {p.level === 'REFUERZO' ? 'refuerzo' : 'mantener'} · {(p.minutes / 60).toFixed(1)} h — {p.reason}
+            </p>
+          ))}
+        </Card>
+      )}
+
       <h2>Alertas al equipo</h2>
       {teamAlerts.length === 0 && <p className="muted">Sin alertas.</p>}
       {teamAlerts.map((a: any) => <AlertCard key={a.id} a={a} onChange={load} />)}

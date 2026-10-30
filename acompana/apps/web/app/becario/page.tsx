@@ -13,11 +13,15 @@ export default function Home() {
   const [d, setD] = useState<any>(null);
   const [lifeEvent, setLifeEvent] = useState('');
   const [sent, setSent] = useState(false);
+  const [plan, setPlan] = useState<any>(null);
 
   useEffect(() => {
     api('/scholar/home').then((h) => {
       if (!h.onboardingDone) router.replace('/becario/onboarding');
-      else setD(h);
+      else {
+        setD(h);
+        api('/scholar/plan').then(setPlan);
+      }
     });
   }, [router]);
   if (!d) return <Loading />;
@@ -41,6 +45,8 @@ export default function Home() {
           <p style={{ margin: 0 }}>Sigue con tu plan. Si algo cambia, cuéntamelo por WhatsApp.</p>
         </Card>
       )}
+
+      {plan?.studyPlan && <TodayPlan plan={plan} />}
 
       {sig && goal && (
         <Card title="Tu semana">
@@ -114,5 +120,30 @@ function Progress({ label, value, target, fmt }: { label: string; value: number;
       </div>
       <div className="bar"><span style={{ width: `${pct}%` }} /></div>
     </div>
+  );
+}
+
+const norm = (x: number) => (x === 0 ? 7 : x);
+const DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+function TodayPlan({ plan }: { plan: any }) {
+  const blocks: any[] = plan.studyPlan.blocks;
+  const today = blocks.filter((b) => b.dow === plan.todayDow);
+  const next = blocks.find((b) => !b.doneAt && norm(b.dow) >= norm(plan.todayDow));
+  const refuerzo = plan.studyPlan.priorities.filter((p: any) => p.level === 'REFUERZO').map((p: any) => p.name);
+  return (
+    <Card title="Tu plan de estudio">
+      {today.length ? (
+        <p style={{ marginTop: 0 }}>
+          Hoy: {today.map((b) => `${b.start} ${b.title}${b.doneAt ? ' ✓' : ''}`).join(' · ')}
+        </p>
+      ) : next ? (
+        <p style={{ marginTop: 0 }}>Tu próximo bloque: {DAYS[next.dow]} {next.start}, {next.title}.</p>
+      ) : (
+        <p style={{ marginTop: 0 }}>Completaste los bloques de la semana. ¡Bien hecho!</p>
+      )}
+      {refuerzo.length > 0 && <p className="small">En refuerzo esta semana: {refuerzo.join(', ')}.</p>}
+      <Link href="/becario/plan" className="small">Ver mi plan completo →</Link>
+    </Card>
   );
 }

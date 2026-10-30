@@ -121,6 +121,10 @@ model User {
   id           String      @id @default(cuid())
   name         String
   email        String      @unique
+  /// DNI (8 dígitos). Ficticio en la demo. Identificador de ingreso, no prueba de identidad.
+  dni          String?     @unique
+  /// PBKDF2-SHA256 con sal (formato pbkdf2$iteraciones$sal$hash). null = sin acceso a la plataforma.
+  passwordHash String?
   role         Role
   specialty    Specialty?
   /// Alcance: null = Pronabec (todas las universidades).
@@ -174,6 +178,7 @@ model Scholar {
   mentors        MentorAssignment[]
   mentorSessions MentorSession[]
   familyContacts FamilyContact[]
+  studyPlans     StudyPlan[]
 }
 
 model Consent {
@@ -462,4 +467,36 @@ model DemoClock {
   weekNumber Int
   /// Desfase en días respecto al reloj real.
   offsetDays Int      @default(0)
+}
+
+/// Plan de estudio personalizado de una semana (generado por buildStudyPlan en packages/domain).
+model StudyPlan {
+  id          String       @id @default(cuid())
+  scholarId   String
+  scholar     Scholar      @relation(fields: [scholarId], references: [id])
+  weekStart   String
+  /// [{ courseId, name, level, minutes, reason }]
+  priorities  Json
+  notes       String[]
+  createdAt   DateTime     @default(now())
+  blocks      StudyBlock[]
+
+  @@unique([scholarId, weekStart])
+}
+
+model StudyBlock {
+  id        String    @id @default(cuid())
+  planId    String
+  plan      StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  /// 0 = domingo … 6 = sábado (hora de Lima)
+  dow       Int
+  start     String
+  minutes   Int
+  courseId  String?
+  title     String
+  /// ESTUDIO | REFUERZO | NIVELACION
+  kind      String
+  topic     String?
+  reason    String
+  doneAt    DateTime?
 }

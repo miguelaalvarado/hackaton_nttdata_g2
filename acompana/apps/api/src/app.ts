@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { ZodError } from 'zod';
+import { HttpErrorLike } from '@acompana/db/services';
 import { HttpError } from './auth';
 import { authRoutes } from './routes/auth';
 import { chatRoutes } from './routes/chat';
@@ -18,7 +19,7 @@ export async function buildApp() {
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ZodError) return reply.code(400).send({ code: 'DATOS_INVALIDOS', message: 'Datos inválidos', issues: err.issues });
-    if (err instanceof HttpError) return reply.code(err.status).send({ code: err.code, message: err.message });
+    if (err instanceof HttpError || err instanceof HttpErrorLike) return reply.code(err.status).send({ code: err.code, message: err.message });
     if ((err as { code?: string }).code === 'P2025') return reply.code(404).send({ code: 'NO_ENCONTRADO', message: 'Recurso no encontrado' });
     app.log.error(err);
     return reply.code(500).send({ code: 'ERROR_INTERNO', message: 'Ocurrió un error inesperado.' });

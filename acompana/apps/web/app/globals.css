@@ -122,3 +122,14 @@ th { font-size: .8rem; color: var(--muted); font-weight: 600; }
 .composer input { flex: 1; }
 .notice { font-size: .8rem; padding: 6px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
 @media (max-width: 600px) { .hide-sm { display: none; } }
+/* Plan de estudio */
+.block { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; background: var(--surface); }
+.block.REFUERZO { border-left: 4px solid var(--amarillo); }
+.block.NIVELACION { border-left: 4px solid var(--brand); }
+.block.ESTUDIO { border-left: 4px solid var(--line); }
+.block.clase { background: var(--bg); border-style: dashed; }
+.block.done { opacity: .6; }
+.block.done strong { text-decoration: line-through; }
+.kind { display: inline-block; margin-left: 6px; font-size: .72rem; padding: 0 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+.k-REFUERZO { color: var(--amarillo); border-color: var(--amarillo); }
+.k-NIVELACION { color: var(--brand); border-color: var(--brand); }

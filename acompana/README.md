@@ -65,13 +65,28 @@ el asistente responde con un mensaje seguro dentro de su alcance. La detección 
 
 ## 2. Guion de la demo (≈7 minutos)
 
-Entra en http://localhost:3000 y elige el usuario en cada paso. Para la vista de becario, usa el navegador en modo móvil o una ventana angosta.
+Entra en http://localhost:3000 con **DNI y contraseña**. Las cuentas de prueba (datos ficticios) aparecen al lado del formulario;
+tócalas para ingresar o escribe el DNI. Contraseña de todas: `Acompana2026` (configurable con `DEMO_PASSWORD` al sembrar).
+Para la vista de becario, usa el navegador en modo móvil o una ventana angosta.
+
+| Persona | DNI (ficticio) | Rol |
+|---|---|---|
+| Ana Torres | 99000101 | Becaria |
+| Luis Ríos | 99000102 | Becario |
+| Rosa Huamaní | 99000103 | Becaria |
+| Pedro Condori | 99000104 | Becario (sin onboarding) |
+| Carmen Rojas | 99000201 | Coordinación Pronabec |
+| Jorge Salas | 99000202 | Coordinación universidad |
+| Marco Paredes | 99000203 | Tutor académico |
+| Lucía Fernández | 99000204 | Psicóloga |
+| Diego Huamán | 99000301 | Mentor par |
+| Ruth Salazar | 99000302 | Mentora par |
 
 | # | Quién | Qué hacer | Qué se ve |
 |---|---|---|---|
 | 1 | **Ana Torres** (becaria) | Abre *Inicio* | Verde. Cumple todas las reglas de su cohorte. No tiene alertas. |
-| 2 | **Luis Ríos** (becario) | Abre *Inicio* y *Mi plan* | Siguiente paso concreto (sin regaños). "Tienes 1 curso desaprobado: una desaprobación más haría perder la beca" (cohorte DS 017). Refuerzo marcado en su plan. |
-| 3 | **Luis** | En *WhatsApp* escribe: `¿qué clases tengo mañana?`, luego `no cumplí mis horas de estudio`, luego `cuándo depositan la subvención` y `¿quién ganó el partido de fútbol?` | El asistente usa sus datos (horario, metas, FAQ), propone un paso pequeño, y redirige el tema ajeno. |
+| 2 | **Luis Ríos** (becario) | Abre *Inicio* y *Mi plan*; marca como hecho un bloque de hoy | Siguiente paso concreto (sin regaños) y "Tienes 1 curso desaprobado: una desaprobación más haría perder la beca" (cohorte DS 017). **Plan de estudio personalizado**: agenda semanal con sus clases y bloques de estudio sin choques; cursos bajo el mínimo en refuerzo con asesoría reservada; nivelación en matemática (desaprobó el módulo) y en lectura (diagnóstico 58 %); el motivo de cada prioridad. Al marcar un bloque suben sus horas de estudio de la semana. |
+| 3 | **Luis** | En *WhatsApp* escribe: `¿qué clases tengo mañana?`, luego `no cumplí mis horas de estudio`, luego `cuándo depositan la subvención` y `¿quién ganó el partido de fútbol?` | El asistente usa sus datos (horario, plan, FAQ), propone **el siguiente bloque concreto de su plan**, y redirige el tema ajeno. |
 | 4 | **Jorge Salas** (coordinador) | Abre el panel → clic en **Rojo** → *Luis Ríos Pacaya* | Rojo con 3 razones (regla DS 017 + baja conexión + parciales bajos). Perfiles **Integración + Barrera académica**. Dos alertas rojas con responsable (tutor y mentor) y reloj de 48 h. |
 | 5 | **Marco Paredes** (tutor) | *Mis alertas* → registra "Contacté al becario…" en la de Luis | La alerta pasa a "Atendida a tiempo" y cuenta para el cumplimiento de 48 h. |
 | 6 | **Jorge Salas** | En la ficha de **Rosa Huamaní** → *Enviar mensaje* → plantilla `checkin_semanal` → Enviar. Envía otra plantilla | La primera sale (plantilla, porque la ventana de 24 h está cerrada). La segunda queda **diferida por tope diario**. |
@@ -79,7 +94,8 @@ Entra en http://localhost:3000 y elige el usuario en cada paso. Para la vista de
 | 8 | **Lucía Fernández** (psicóloga) | *Mis alertas* → alerta roja de Rosa (origen: *crisis chat*) → registra el contacto | Alerta roja de Malestar emocional creada en el momento, vence en 48 h; queda "Atendida a tiempo". En la ficha se ve toda la conversación y las decisiones de política. |
 | 9 | **Rosa** | Escribe `BAJA` | Confirmación única. Cualquier envío posterior (prueba desde el panel) queda **bloqueado: BAJA solicitada**. `ALTA` la reactiva con un nuevo consentimiento. |
 | 10 | **Jorge Salas** | Panel → **Demo: avanzar una semana** | Se generan las señales de la semana siguiente y se recalcula todo. Lo atendido mejora (Rosa baja a verde y su alerta sigue en seguimiento); lo no atendido aparece **vencido** y baja el % de cumplimiento de 48 h. |
-| 11 | **Pedro Condori** (becario nuevo) | Entra | Onboarding del día cero: región, si vive solo, encaje con la carrera, ánimo, diagnóstico corto de matemática y lectura, y consentimientos (datos — Ley 29733 — y WhatsApp) guardados con fecha, versión y texto exacto. |
+| 11 | **Pedro Condori** (becario nuevo) | Entra y completa el registro | Onboarding del día cero: región, si vive solo, encaje con la carrera, ánimo, diagnóstico corto de matemática y lectura, y consentimientos (datos — Ley 29733 — y WhatsApp) guardados con fecha, versión y texto exacto. Al terminar, *Mi plan* arma su primera semana según su diagnóstico. |
+| 12 | Cualquiera | En el ingreso, escribe un DNI de prueba con una contraseña equivocada 5 veces | Mensaje único "DNI o contraseña incorrectos" (no revela si el DNI existe) y bloqueo de 15 minutos. |
 
 Otros usuarios: **Carmen Rojas (Pronabec)** ve las 3 universidades; **Diego Huamán (mentor)** solo ve a los becarios que tiene asignados y no ve el detalle emocional.
 
@@ -129,6 +145,8 @@ y así se evita una dependencia circular entre paquetes).
 | 7 perfiles combinables y prioridad | `packages/domain/src/profiles.ts`, `playbooks.ts` | `AppConfig.profileThresholds` |
 | Alertas en dos direcciones y SLA 48 h | `packages/domain/src/alerts.ts` | `AppConfig.sla` |
 | WhatsApp: opt-in, BAJA, ventana 24 h, plantillas, tope diario, silencio 22:00–07:00 Lima | `packages/domain/src/messaging-policy.ts`, `inbound.ts` | `AppConfig.messaging`; catálogo en `packages/messaging/src/templates.ts` |
+| Plan de estudio personalizado (prioridades, refuerzo, asesorías, nivelación, agenda sin choques) | `packages/domain/src/study-plan.ts`, `packages/db/src/services/study-plan.ts` | `DEFAULT_STUDY_PLAN_CONFIG` (umbral de diagnóstico, peso de refuerzo, duración de bloques, horarios, máx. asesorías) |
+| Ingreso con DNI + contraseña, bloqueo por intentos | `packages/domain/src/auth.ts`, `packages/db/src/services/password.ts`, `apps/api/src/routes/auth.ts` | `DEFAULT_LOGIN_GUARD`; `DEMO_ACCOUNTS=false` oculta las cuentas de prueba |
 | Crisis: detección antes del LLM, escalamiento y línea de ayuda | `packages/domain/src/crisis.ts`, `packages/db/src/services/conversation.ts` | `AppConfig.crisisHelpline`; frases en `crisis.ts` (revisables por psicología) |
 
 El semáforo **no usa** región de origen, lengua ni pobreza: `assertAllowedFeatures` lo bloquea y hay una prueba que lo verifica.
@@ -138,13 +156,15 @@ El semáforo **no usa** región de origen, lengua ni pobreza: `assertAllowedFeat
 
 ```bash
 cd acompana
-npm test          # Vitest: 47 pruebas
+npm test          # Vitest: 58 pruebas
 npm run typecheck
 ```
 
 Cubren reglas de beca (ambas cohortes), semáforo (rojo por regla, crisis, umbrales, variables prohibidas, reproducibilidad del modelo),
 perfiles (Luis, prioridad emocional, tiempo y recursos sin reducir créditos), alertas y SLA de 48 h, ventana de 24 h, opt-in/BAJA,
-tope diario, horario de silencio en hora de Lima, catálogo de plantillas, crisis, reintentos/backoff y control de acceso.
+tope diario, horario de silencio en hora de Lima, catálogo de plantillas, crisis, reintentos/backoff, control de acceso,
+plan de estudio (meta de horas, sin choques con clases ni horario de silencio, refuerzo y asesorías, nivelación, bloques cortos sin tocar créditos)
+e ingreso (DNI, contraseñas con sal, bloqueo por intentos).
 
 ## 6. Despliegue en la nube (app completa)
 
@@ -196,7 +216,12 @@ propio en los ALB y autenticación institucional en lugar del login de demostrac
   desaprobación dentro del primer ciclo).
 - **Línea de ayuda:** Línea 113 Salud del MINSA (24 h) y 106 (SAMU). Verificar en https://www.gob.pe/555 antes de cada demo; es configurable.
 - **FAQ de trámites y kit de llegada:** contenido genérico de demo; las respuestas remiten a los canales oficiales de Pronabec.
-- **Autenticación:** login de demostración sin contraseña (solo datos sintéticos). En producción: SSO institucional.
+- **Ingreso:** DNI + contraseña (PBKDF2-SHA256, 600 000 iteraciones, con sal). Los DNI de prueba (rango 99000xxx) y la contraseña
+  común son ficticios y solo para la demo. Pendiente para producción: alta y recuperación de contraseña (hoy la restablece el coordinador
+  fuera de la plataforma), segundo factor, bloqueo de intentos en un almacén compartido (hoy en memoria de cada instancia) y, si Pronabec
+  lo permite, integración con su sistema de identidad.
+- **Plan de estudio:** las asesorías son espacios reservados; el horario oficial lo confirma el tutor o la facultad. El plan organiza el
+  tiempo y nunca cambia la matrícula.
 - **Revocar el consentimiento de datos** queda registrado, pero aún no dispara la anonimización/borrado (pendiente).
 - **"Avanzar semana"** es solo para la demo: desplaza el reloj y simula señales; las personas de la demo mejoran si su alerta fue atendida.
 - **Categoría de plantillas:** criterio conservador; recordatorios de clase/trámite/cita = `UTILITY`; check-ins y mensajes de ánimo = `MARKETING`.
@@ -214,3 +239,4 @@ propio en los ALB y autenticación institucional en lugar del login de demostrac
 | Inicio de Luis (móvil) ![](docs/capturas/03-luis-inicio.png) | Chat de Rosa con escalamiento ![](docs/capturas/05-rosa-chat.png) |
 | Panel del coordinador ![](docs/capturas/06-panel.png) | Ficha de Luis ![](docs/capturas/07-panel-luis.png) |
 | Psicóloga atiende a Rosa ![](docs/capturas/08-psicologa-rosa.png) | Onboarding de Pedro ![](docs/capturas/09-pedro-onboarding.png) |
+| Ingreso con DNI y contraseña ![](docs/capturas/10-ingreso-dni.png) | Plan de estudio personalizado de Luis ![](docs/capturas/11-luis-plan.png) |

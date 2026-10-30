@@ -38,6 +38,9 @@ const snapshot = {
   mentorAssignments: await prisma.mentorAssignment.findMany(),
   conversations: await prisma.conversation.findMany(),
   messages: await prisma.message.findMany({ orderBy: { createdAt: 'asc' } }),
+  // Los planes de estudio se generan al abrir "Mi plan" (misma función de dominio).
+  studyPlans: [],
+  studyBlocks: [],
 };
 // Sin el estado latente del generador (solo lo usa "avanzar semana" de las personas sintéticas): se conserva.
 writeFileSync(out, JSON.stringify(snapshot));
