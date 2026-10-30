@@ -5,6 +5,21 @@ y convierte cada señal en **alerta → perfil → acción humana → seguimient
 
 > **Solo datos sintéticos.** Universidades, personas y teléfonos son ficticios. No hay datos personales reales en el repositorio.
 
+## 0. Probar sin instalar nada (versión navegador)
+
+**Link:** https://claude.ai/artifact/CwahW3NhjaxoNQCQKdpobB (privado hasta que su dueña lo comparta desde el menú *Share*).
+
+Son las mismas pantallas, con la misma lógica de dominio (reglas, semáforo, perfiles, alertas, `policyGate`, detección de crisis),
+pero sin servidor: el backend corre en memoria dentro del navegador (`apps/web/browser-demo/`).
+
+- Cada persona prueba con su propia copia de los 204 becarios sintéticos; sus cambios se guardan solo en su navegador.
+  El botón **Reiniciar demo** vuelve al estado inicial.
+- El asistente usa el modo simulado (`MockProvider`), no Claude real. El canal es el simulador de WhatsApp.
+- El reloj de la demo parte de la fecha en que se generaron los datos y avanza como máximo 6 horas reales; usa **Demo: avanzar una semana**.
+- Para regenerarla tras cambiar el código o los datos:
+  `npm run db:seed && npm run export:snapshot -w @acompana/db && npm run build:browser -w @acompana/web`
+  (genera `apps/web/browser-demo/dist/acompana.html`).
+
 ## 1. Correr la demo (un solo comando)
 
 Requisitos: Docker con Docker Compose. Puertos libres: 3000, 4000 y 5432.
@@ -131,16 +146,38 @@ Cubren reglas de beca (ambas cohortes), semáforo (rojo por regla, crisis, umbra
 perfiles (Luis, prioridad emocional, tiempo y recursos sin reducir créditos), alertas y SLA de 48 h, ventana de 24 h, opt-in/BAJA,
 tope diario, horario de silencio en hora de Lima, catálogo de plantillas, crisis, reintentos/backoff y control de acceso.
 
-## 6. Despliegue en AWS (preparado, no requerido)
+## 6. Despliegue en la nube (app completa)
 
-`infra/` tiene un stack CDK de referencia: ECS Fargate (api, worker, web), RDS PostgreSQL, Secrets Manager y ALB, con permisos para
-Bedrock y AWS End User Messaging Social. No se ha desplegado; revisa costos y región antes de usarlo.
+La misma imagen Docker sirve en cualquier plataforma que corra contenedores y PostgreSQL 16. Objetivos del `Dockerfile`:
+`app` (API, worker y migraciones) y `web` (Next.js).
+
+| Servicio | Imagen / comando | Variables |
+|---|---|---|
+| Migración (una vez por despliegue) | `app` · `npm run migrate -w @acompana/db && npm run seed:ensure -w @acompana/db` | `DATABASE_URL` |
+| API | `app` (comando por defecto) | `DATABASE_URL`, `JWT_SECRET`, `WEB_ORIGIN` (URL pública de la web), `PORT` o `API_PORT`; opcional `LLM_PROVIDER`, `ANTHROPIC_API_KEY` o `AWS_REGION` |
+| Worker | `app` · `npm run start -w @acompana/worker` | Las mismas que la API |
+| Web | `web` | `API_PUBLIC_URL` (URL pública de la API; se lee en tiempo de ejecución) |
+
+**Un solo servicio para la API:** con `WORKER_IN_PROCESS=true` la API también procesa la cola, útil en planes donde un worker aparte cuesta más.
+
+**Secretos:** `JWT_SECRET` y `ANTHROPIC_API_KEY` van en el gestor de secretos de la plataforma, nunca en el repositorio.
+
+Las plataformas gestionadas (Render, Railway, Fly.io…) no se configuraron ni se probaron: su documentación no fue accesible desde el
+entorno donde se construyó el MVP. Revisa su documentación vigente y sus precios antes de elegir.
+
+### AWS (preparado con CDK)
+
+`infra/` crea ECS Fargate (api, worker, web), RDS PostgreSQL, Secrets Manager y dos ALB, con permisos para Bedrock y AWS End User
+Messaging Social. `cdk synth` funciona; **no se ha desplegado**. Revisa costos y región antes de usarlo.
 
 ```bash
 cd acompana/infra && npm install
-npx cdk synth
-npx cdk deploy -c apiUrl=https://api.tu-dominio.pe -c webOrigin=https://tu-dominio.pe
+npx cdk bootstrap        # una vez por cuenta y región
+npx cdk deploy           # imprime ApiUrl y WebUrl
 ```
+
+Por defecto usa `LLM_PROVIDER=bedrock` (requiere tener acceso al modelo en Bedrock en esa región). Para producción: HTTPS con dominio
+propio en los ALB y autenticación institucional en lugar del login de demostración.
 
 ## 7. Etapas
 

@@ -7,3 +7,4 @@ export * from './alerts';
 export * from './assistant-tools';
 export * from './queue';
 export * from './demo';
+export * from './worker';

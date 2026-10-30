@@ -1,6 +1,10 @@
 'use client';
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+/** URL de la API: la inyecta el layout en tiempo de ejecución (API_PUBLIC_URL); si no, la del build o la local. */
+export function apiUrl(): string {
+  const fromRuntime = typeof window !== 'undefined' ? (window as unknown as { __ACOMPANA_API__?: string }).__ACOMPANA_API__ : undefined;
+  return fromRuntime ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+}
 
 export interface SessionUser {
   sub: string;
@@ -41,7 +45,7 @@ export class ApiError extends Error {
 
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
   const s = getSession();
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${apiUrl()}${path}`, {
     method: opts.method ?? (opts.body ? 'POST' : 'GET'),
     headers: { ...(opts.body ? { 'content-type': 'application/json' } : {}), ...(s ? { authorization: `Bearer ${s.token}` } : {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,

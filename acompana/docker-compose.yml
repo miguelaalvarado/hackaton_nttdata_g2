@@ -56,6 +56,9 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: http://localhost:4000
+    environment:
+      # URL de la API que usa el navegador; se lee en tiempo de ejecución.
+      API_PUBLIC_URL: http://localhost:4000
     ports: ["3000:3000"]
     depends_on: [api]
 

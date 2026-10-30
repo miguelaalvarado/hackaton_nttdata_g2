@@ -97,6 +97,9 @@ Fuente normativa: DS 017-2026-MINEDU (publicado en El Peruano, sept. 2026). Ante
 - Demo completa: `docker compose up --build` (web :3000, API :4000).
 - Desarrollo: `npm install`, `npm run db:migrate`, `npm run db:seed`, `npm run dev:api|dev:worker|dev:web`.
 - Calidad: `npm test` y `npm run typecheck`. Reentrenar el modelo sintético: `npm run train` (actualiza `risk/model.json`).
+- Versión navegador (sin servidor, publicada como página en claude.ai): `apps/web/browser-demo/`. Su `backend.ts` replica las rutas de
+  la API en memoria usando `packages/domain`; si cambias rutas, servicios o pantallas, actualízalo también. Regenerar:
+  `npm run db:seed && npm run export:snapshot -w @acompana/db && npm run build:browser -w @acompana/web`.
 
 ## 4. Convenciones
 - Código (identificadores) en inglés; textos de UI, mensajes al becario y documentación en español (Perú), trato de "tú", tono cálido y claro.

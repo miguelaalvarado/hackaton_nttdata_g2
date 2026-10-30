@@ -10,7 +10,8 @@
     "migrate": "node --env-file-if-exists=../../.env ../../node_modules/prisma/build/index.js migrate deploy",
     "migrate:dev": "node --env-file-if-exists=../../.env ../../node_modules/prisma/build/index.js migrate dev",
     "seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts",
-    "seed:ensure": "tsx --env-file-if-exists=../../.env src/seed/ensure.ts"
+    "seed:ensure": "tsx --env-file-if-exists=../../.env src/seed/ensure.ts",
+    "export:snapshot": "tsx --env-file-if-exists=../../.env src/seed/export-snapshot.ts"
   },
   "dependencies": {
     "@acompana/domain": "*",

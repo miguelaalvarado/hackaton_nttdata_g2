@@ -57,7 +57,7 @@ export class AcompanaStack extends Stack {
       taskImageOptions: {
         image: appImage,
         containerPort: 4000,
-        environment: { ...env, ...dbEnv, API_PORT: '4000', WEB_ORIGIN: this.node.tryGetContext('webOrigin') ?? 'http://localhost:3000' },
+        environment: { ...env, ...dbEnv, API_PORT: '4000' },
         secrets: appSecretsEnv,
         command: ['sh', '-c', 'export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:5432/$DB_NAME" && npm run migrate -w @acompana/db && npm run start -w @acompana/api'],
       },
@@ -74,18 +74,20 @@ export class AcompanaStack extends Stack {
     });
     const worker = new ecs.FargateService(this, 'Worker', { cluster, taskDefinition: workerTask, desiredCount: 1 });
 
-    // NEXT_PUBLIC_API_URL se fija al construir la imagen: requiere conocer la URL pública de la API antes del despliegue
-    // (dominio propio). Pásala con: cdk deploy -c apiUrl=https://api.tu-dominio.pe
-    const apiUrl = this.node.tryGetContext('apiUrl') ?? 'http://localhost:4000';
     const web = new ecsPatterns.ApplicationLoadBalancedFargateService(this, 'Web', {
       cluster,
       cpu: 256,
       memoryLimitMiB: 512,
       taskImageOptions: {
-        image: ecs.ContainerImage.fromAsset(root, { target: 'web', buildArgs: { NEXT_PUBLIC_API_URL: apiUrl } }),
+        image: ecs.ContainerImage.fromAsset(root, { target: 'web' }),
         containerPort: 3000,
+        // La web lee la URL de la API en tiempo de ejecución (app/layout.tsx).
+        environment: { API_PUBLIC_URL: `http://${api.loadBalancer.loadBalancerDnsName}` },
       },
     });
+
+    // CORS: la API acepta llamadas solo desde la web desplegada.
+    api.taskDefinition.defaultContainer!.addEnvironment('WEB_ORIGIN', `http://${web.loadBalancer.loadBalancerDnsName}`);
 
     for (const svc of [api.service, worker]) {
       db.connections.allowDefaultPortFrom(svc);
