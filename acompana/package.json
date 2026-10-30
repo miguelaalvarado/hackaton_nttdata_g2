@@ -1,0 +1,30 @@
+{
+  "name": "acompana",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Acompaña: prevención del abandono en becarios Beca 18 / Pronabec (MVP hackathon, datos sintéticos)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "npm run generate -w @acompana/db",
+    "db:migrate": "npm run migrate -w @acompana/db",
+    "db:seed": "npm run seed -w @acompana/db",
+    "train": "npm run train -w @acompana/domain",
+    "dev:api": "npm run dev -w @acompana/api",
+    "dev:worker": "npm run dev -w @acompana/worker",
+    "dev:web": "npm run dev -w @acompana/web"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
